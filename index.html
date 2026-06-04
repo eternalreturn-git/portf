@@ -95,7 +95,7 @@
     var c = ''
       + '<div class="cards">'
       +   '<div class="card"><div class="k">Mitt värde</div><div class="v">'+kr(d.equity_sek)+'</div></div>'
-      +   '<div class="card"><div class="k">Utveckling</div><div class="v '+cls(d.pnl_sek)+'">'+(d.pnl_sek!=null?(d.pnl_sek>=0?'+':'')+kr(d.pnl_sek):'—')+'</div>'
+      +   '<div class="card"><div class="k">Utveckling på insatt kapital</div><div class="v '+cls(d.pnl_sek)+'">'+(d.pnl_sek!=null?(d.pnl_sek>=0?'+':'')+kr(d.pnl_sek):'—')+'</div>'
       +     '<div class="s '+cls(d.pnl_pct)+'">'+pct(d.pnl_pct)+'</div></div>'
       +   '<div class="card sm"><div class="k">Marknadsexponering</div><div class="v">'+kr(d.gross_sek)+'</div></div>'
       +   '<div class="card sm"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+'</div></div>'
