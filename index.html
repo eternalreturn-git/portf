@@ -107,27 +107,26 @@
 
     if(stocks.length){
       c += '<div class="sec">Aktier ('+stocks.length+')</div>';
-      c += '<table><thead><tr><th>Aktie</th><th>Värde</th><th>P/L %</th><th>P/L kr</th><th>Dagar</th></tr></thead><tbody>';
+      c += '<table><thead><tr><th>Aktie</th><th>Värde</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
       stocks.forEach(function(h){
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span></td>'
            + '<td>'+kr(h.value_sek)+'</td>'
            + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
-           + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td>'
-           + '<td>'+(h.days_held!=null? h.days_held : '')+'</td></tr>';
+           + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td></tr>';
       });
       c += '</tbody></table>';
     }
     if(opts.length){
       c += '<div class="sec">Optioner ('+opts.length+')</div>';
-      c += '<table><thead><tr><th>Option</th><th>Strike</th><th>Slut</th><th>Värde</th><th>P/L %</th><th>P/L kr</th><th>Dgr</th></tr></thead><tbody>';
+      c += '<table><thead><tr><th>Option</th><th>Strike</th><th>Värde</th><th>P/L %</th><th>P/L kr</th><th>Slutdatum</th><th>dagar</th></tr></thead><tbody>';
       opts.forEach(function(h){
         var r = h.right==='P'?'PUT':(h.right==='C'?'CALL':'');
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span>'+(r?'<span class="ty">'+r+'</span>':'')+'</td>'
            + '<td>'+(h.strike!=null?'$'+h.strike:'—')+'</td>'
-           + '<td>'+fmtDate(h.expiry)+'</td>'
            + '<td>'+kr(h.value_sek)+'</td>'
            + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
            + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td>'
+           + '<td>'+fmtDate(h.expiry)+'</td>'
            + '<td>'+(h.dte!=null? h.dte : '')+'</td></tr>';
       });
       c += '</tbody></table>';
