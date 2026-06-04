@@ -42,6 +42,7 @@
   tbody td{padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--mono)}
   tbody td:first-child{text-align:left;font-family:inherit}
   tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:rgba(255,255,255,.05)}
   .tk{font-weight:700} .ty{font-size:.66rem;color:var(--dim);margin-left:6px}
   .foot{margin-top:20px;font-size:.7rem;color:var(--dim);text-align:center;line-height:1.6}
   .msg{padding:40px 16px;text-align:center;color:var(--dim)}
@@ -96,7 +97,7 @@
     document.title = (d.name? d.name+' — ':'') + 'Portfölj';
     var c = ''
       + '<div class="cards">'
-      +   '<div class="card"><div class="k">Mitt värde</div><div class="v">'+kr(d.equity_sek)+'</div></div>'
+      +   '<div class="card"><div class="k">Totalt eget kapital</div><div class="v">'+kr(d.equity_sek)+'</div></div>'
       +   '<div class="card"><div class="k">Utveckling på insatt kapital</div><div class="v '+cls(d.pnl_sek)+'">'+(d.pnl_sek!=null?(d.pnl_sek>=0?'+':'')+kr(d.pnl_sek):'—')+'</div>'
       +     '<div class="s '+cls(d.pnl_pct)+'">'+pct(d.pnl_pct)+'</div></div>'
       +   '<div class="card sm"><div class="k">Marknadsexponering</div><div class="v">'+kr(d.gross_sek)+'</div></div>'
@@ -127,11 +128,12 @@
     }
     if(opts.length){
       c += '<div class="sec">Optioner ('+opts.length+')</div>';
-      c += '<table><thead><tr><th>Option</th><th>Strike</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th><th>Slutdatum</th><th>dagar</th></tr></thead><tbody>';
+      c += '<table><thead><tr><th>Option</th><th>Strike</th><th>Kurs</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th><th>Slutdatum</th><th>dagar</th></tr></thead><tbody>';
       opts.forEach(function(h){
         var r = h.right==='P'?'PUT':(h.right==='C'?'CALL':'');
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span>'+(r?'<span class="ty">'+r+'</span>':'')+'</td>'
            + '<td>'+(h.strike!=null?'$'+h.strike:'—')+'</td>'
+           + '<td>'+(h.kurs!=null?'$'+Number(h.kurs).toFixed(2):'—')+'</td>'
            + '<td>'+kr(h.value_sek)+'</td>'
            + '<td>'+apTxt(h.value_sek)+'</td>'
            + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
