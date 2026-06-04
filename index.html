@@ -28,6 +28,9 @@
   .card .k{font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
   .card .v{font-size:1.3rem;font-weight:700;margin-top:3px;font-family:var(--mono)}
   .card .s{font-size:.74rem;color:var(--dim);margin-top:2px;font-family:var(--mono)}
+  .card.sm{padding:9px 12px}
+  .card.sm .k{font-size:.64rem}
+  .card.sm .v{font-size:.95rem;font-weight:600;color:var(--dim)}
   .pos{color:var(--pos)} .neg{color:var(--neg)}
   .sec{font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin:18px 2px 8px}
   table{width:100%;border-collapse:collapse;font-size:.84rem}
@@ -50,10 +53,6 @@
     <div class="fresh"><span class="dot" id="dot"></span><span id="fresh">laddar…</span></div>
   </header>
   <div id="content"><div class="msg" id="msg">Laddar…</div></div>
-  <div class="foot">
-    Skrivskyddad vy. Uppdateras automatiskt.<br>
-    <span id="fx"></span>
-  </div>
 </div>
 <script>
   var T = new URLSearchParams(location.search).get('t');
@@ -86,36 +85,53 @@
     }
   }
 
+  function byVal(a,b){ return (b.value_sek||0)-(a.value_sek||0); }
+  function plkr(v){ return (v==null)?'—':((v>=0?'+':'−')+Math.round(Math.abs(v)).toLocaleString('sv-SE')); }
+  function fmtDate(s){ s=String(s||''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : '—'; }
+
   function render(d){
     document.getElementById('pname').textContent = d.name || 'Portfölj';
     document.title = (d.name? d.name+' — ':'') + 'Portfölj';
-    document.getElementById('fx').textContent = d.usd_sek? ('USD/SEK '+Number(d.usd_sek).toFixed(2)) : '';
     var c = ''
       + '<div class="cards">'
-      +   '<div class="card"><div class="k">Mitt värde</div><div class="v">'+kr(d.equity_sek)+'</div>'
-      +     '<div class="s">Andel '+(d.share_pct!=null?Number(d.share_pct).toFixed(2)+'%':'—')+'</div></div>'
+      +   '<div class="card"><div class="k">Mitt värde</div><div class="v">'+kr(d.equity_sek)+'</div></div>'
       +   '<div class="card"><div class="k">Utveckling</div><div class="v '+cls(d.pnl_sek)+'">'+(d.pnl_sek!=null?(d.pnl_sek>=0?'+':'')+kr(d.pnl_sek):'—')+'</div>'
       +     '<div class="s '+cls(d.pnl_pct)+'">'+pct(d.pnl_pct)+'</div></div>'
-      +   '<div class="card"><div class="k">Marknadsexponering</div><div class="v">'+kr(d.gross_sek)+'</div>'
-      +     '<div class="s">brutto</div></div>'
-      +   '<div class="card"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+'</div>'
-      +     '<div class="s">din andel</div></div>'
+      +   '<div class="card sm"><div class="k">Marknadsexponering</div><div class="v">'+kr(d.gross_sek)+'</div></div>'
+      +   '<div class="card sm"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+'</div></div>'
       + '</div>';
 
-    var hs = (d.holdings||[]).filter(function(h){return h.value_sek!=null;})
-                .sort(function(a,b){return (b.value_sek||0)-(a.value_sek||0);});
-    c += '<div class="sec">Innehav ('+hs.length+')</div>';
-    c += '<table><thead><tr><th>Innehav</th><th>Värde</th><th>P/L</th><th>xMA</th><th>Dagar</th></tr></thead><tbody>';
-    hs.forEach(function(h){
-      var typ = h.type==='Call' ? (h.expiry? 'OPT '+(h.dte!=null?h.dte+'d':'') : 'OPT') : '';
-      var dgr = (h.days_held!=null? h.days_held : (h.dte!=null? h.dte : ''));
-      c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span>'+(typ?'<span class="ty">'+typ+'</span>':'')+'</td>'
-         + '<td>'+kr(h.value_sek)+'</td>'
-         + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
-         + '<td class="'+cls(h.xma_pct)+'">'+(h.xma_pct!=null?pct(h.xma_pct):'—')+'</td>'
-         + '<td>'+dgr+'</td></tr>';
-    });
-    c += '</tbody></table>';
+    var all = (d.holdings||[]).filter(function(h){return h.value_sek!=null;});
+    var stocks = all.filter(function(h){return h.type==='Stock';}).sort(byVal);
+    var opts   = all.filter(function(h){return h.type!=='Stock';}).sort(byVal);
+
+    if(stocks.length){
+      c += '<div class="sec">Aktier ('+stocks.length+')</div>';
+      c += '<table><thead><tr><th>Aktie</th><th>Värde</th><th>P/L %</th><th>P/L kr</th><th>Dagar</th></tr></thead><tbody>';
+      stocks.forEach(function(h){
+        c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span></td>'
+           + '<td>'+kr(h.value_sek)+'</td>'
+           + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
+           + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td>'
+           + '<td>'+(h.days_held!=null? h.days_held : '')+'</td></tr>';
+      });
+      c += '</tbody></table>';
+    }
+    if(opts.length){
+      c += '<div class="sec">Optioner ('+opts.length+')</div>';
+      c += '<table><thead><tr><th>Option</th><th>Strike</th><th>Slut</th><th>Värde</th><th>P/L %</th><th>P/L kr</th><th>Dgr</th></tr></thead><tbody>';
+      opts.forEach(function(h){
+        var r = h.right==='P'?'PUT':(h.right==='C'?'CALL':'');
+        c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span>'+(r?'<span class="ty">'+r+'</span>':'')+'</td>'
+           + '<td>'+(h.strike!=null?'$'+h.strike:'—')+'</td>'
+           + '<td>'+fmtDate(h.expiry)+'</td>'
+           + '<td>'+kr(h.value_sek)+'</td>'
+           + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
+           + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td>'
+           + '<td>'+(h.dte!=null? h.dte : '')+'</td></tr>';
+      });
+      c += '</tbody></table>';
+    }
     document.getElementById('content').innerHTML = c;
     freshness(d.updated_epoch);
   }
