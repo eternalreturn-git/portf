@@ -107,7 +107,7 @@
     // (aktier + optioner + saldo) blir därför 100 %.
     var cash = d.cash_sek || 0;
     var base = (d.gross_sek||0) + cash;
-    function apTxt(v){ return base ? (v/base*100).toFixed(1)+'%' : '—'; }
+    function apTxt(v){ if(!base) return '—'; var a=v/base*100; return (a>0&&a<0.1 ? a.toFixed(2) : a.toFixed(1))+'%'; }
 
     var all = (d.holdings||[]).filter(function(h){return h.value_sek!=null;});
     var stocks = all.filter(function(h){return h.type==='Stock';}).sort(byVal);
