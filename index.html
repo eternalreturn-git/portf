@@ -101,16 +101,23 @@
       +   '<div class="card sm"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+'</div></div>'
       + '</div>';
 
+    // Andel = innehavets värde / (alla innehav + saldo). Summan av alla andelar
+    // (aktier + optioner + saldo) blir därför 100 %.
+    var cash = d.cash_sek || 0;
+    var base = (d.gross_sek||0) + cash;
+    function apTxt(v){ return base ? (v/base*100).toFixed(1)+'%' : '—'; }
+
     var all = (d.holdings||[]).filter(function(h){return h.value_sek!=null;});
     var stocks = all.filter(function(h){return h.type==='Stock';}).sort(byVal);
     var opts   = all.filter(function(h){return h.type!=='Stock';}).sort(byVal);
 
     if(stocks.length){
       c += '<div class="sec">Aktier ('+stocks.length+')</div>';
-      c += '<table><thead><tr><th>Aktie</th><th>Värde</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
+      c += '<table><thead><tr><th>Aktie</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
       stocks.forEach(function(h){
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span></td>'
            + '<td>'+kr(h.value_sek)+'</td>'
+           + '<td>'+apTxt(h.value_sek)+'</td>'
            + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
            + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td></tr>';
       });
@@ -118,12 +125,13 @@
     }
     if(opts.length){
       c += '<div class="sec">Optioner ('+opts.length+')</div>';
-      c += '<table><thead><tr><th>Option</th><th>Strike</th><th>Värde</th><th>P/L %</th><th>P/L kr</th><th>Slutdatum</th><th>dagar</th></tr></thead><tbody>';
+      c += '<table><thead><tr><th>Option</th><th>Strike</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th><th>Slutdatum</th><th>dagar</th></tr></thead><tbody>';
       opts.forEach(function(h){
         var r = h.right==='P'?'PUT':(h.right==='C'?'CALL':'');
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span>'+(r?'<span class="ty">'+r+'</span>':'')+'</td>'
            + '<td>'+(h.strike!=null?'$'+h.strike:'—')+'</td>'
            + '<td>'+kr(h.value_sek)+'</td>'
+           + '<td>'+apTxt(h.value_sek)+'</td>'
            + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
            + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td>'
            + '<td>'+fmtDate(h.expiry)+'</td>'
@@ -131,6 +139,11 @@
       });
       c += '</tbody></table>';
     }
+    // Saldo (kontanter) som egen sektion → summan av alla andelar = 100 %.
+    c += '<div class="sec">Saldo</div>';
+    c += '<table><thead><tr><th>Kontanter</th><th>Värde</th><th>Andel</th></tr></thead><tbody>'
+       + '<tr><td>Saldo</td><td>'+kr(cash)+'</td><td>'+apTxt(cash)+'</td></tr>'
+       + '</tbody></table>';
     document.getElementById('content').innerHTML = c;
     freshness(d.updated_epoch);
   }
