@@ -29,7 +29,7 @@
   .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
   .card .k{font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
   .card .v{font-size:1.3rem;font-weight:700;margin-top:3px;font-family:var(--mono)}
-  .card .s{font-size:.74rem;color:var(--dim);margin-top:2px;font-family:var(--mono)}
+  .card .s{font-size:.9rem;color:var(--dim);margin-top:3px;font-family:var(--mono)}
   .card.sm{padding:9px 12px}
   .card.sm .k{font-size:.64rem}
   .card.sm .v{font-size:.95rem;font-weight:600;color:var(--dim)}
@@ -96,14 +96,14 @@
     document.getElementById('pname').textContent = d.name || 'Portfölj';
     document.title = (d.name? d.name+' — ':'') + 'Portfölj';
     // Belåningsgrad = belåning / bruttovärde (hävstångsnivå).
-    var belPct = (d.gross_sek ? ' <span style="font-size:.62em;color:var(--dim)">('+(d.belaning_sek/d.gross_sek*100).toFixed(2)+'%)</span>' : '');
+    var belPct = (d.gross_sek ? (d.belaning_sek/d.gross_sek*100).toFixed(2)+'%' : '—');
     var c = ''
       + '<div class="cards">'
       +   '<div class="card"><div class="k">Totalt eget kapital</div><div class="v">'+kr(d.equity_sek)+'</div></div>'
       +   '<div class="card"><div class="k">Utveckling på insatt kapital</div><div class="v '+cls(d.pnl_sek)+'">'+(d.pnl_sek!=null?(d.pnl_sek>=0?'+':'')+kr(d.pnl_sek):'—')+'</div>'
       +     '<div class="s '+cls(d.pnl_pct)+'">'+pct(d.pnl_pct)+'</div></div>'
       +   '<div class="card sm"><div class="k">Marknadsexponering</div><div class="v">'+kr(d.gross_sek)+'</div></div>'
-      +   '<div class="card sm"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+belPct+'</div></div>'
+      +   '<div class="card sm"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+'</div><div class="s">'+belPct+'</div></div>'
       + '</div>';
 
     // Andel = innehavets värde / (alla innehav + saldo). Summan av alla andelar
