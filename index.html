@@ -204,12 +204,16 @@
     // SJÄLVLÄKER vid ritning, även om den publicerade serien har en gammal spik. Bara
     // intradag-vyer (1M/YTD/1Å = dygnsvärden där en volatil dag är äkta).
     if((per==='today'||per==='1d'||per==='7d') && pts.length>=5){
-      var _W=4, _pv=pts.map(function(o){ return o.p; });
+      var _pv=pts.map(function(o){ return o.p; }), _N=_pv.length, _W=4;
       pts=pts.filter(function(o,i){
-        var win=_pv.slice(Math.max(0,i-_W), Math.min(_pv.length,i+_W+1)).sort(function(a,b){ return a-b; });
-        if(win.length<5) return true;
-        var med=win[Math.floor(win.length/2)];
-        return Math.abs(o.p-med) <= 1.1;   // >1.1 procentenheter från lokal median = spik
+        var p=o.p, a=(i>0)?_pv[i-1]:null, b=(i<_N-1)?_pv[i+1]:null;
+        if(a!=null && b!=null){     // (a) skarp V mot båda grannar (procentenheter)
+          var da=p-a, db=p-b;
+          if((da<-0.7&&db<-0.7)||(da>0.7&&db>0.7)) return false;
+        }
+        var win=_pv.slice(Math.max(0,i-_W),Math.min(_N,i+_W+1)).slice().sort(function(x,y){ return x-y; });
+        if(win.length>=5){ var med=win[Math.floor(win.length/2)]; if(Math.abs(p-med)>0.9) return false; }  // (b) lokal median
+        return true;
       });
     }
     var hi=document.getElementById('chHi'), lo=document.getElementById('chLo'),
