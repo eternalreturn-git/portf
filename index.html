@@ -15,10 +15,11 @@
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box}
+  html,body{max-width:100%;overflow-x:hidden}
   body{margin:0;background:var(--bg);color:var(--text);
        font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
        -webkit-font-smoothing:antialiased;padding:0 0 40px}
-  .wrap{max-width:760px;margin:0 auto;padding:16px}
+  .wrap{max-width:760px;margin:0 auto;padding:16px;width:100%}
   header{display:flex;align-items:center;justify-content:space-between;gap:10px;
          padding:6px 2px 14px;flex-wrap:wrap}
   h1{font-size:1.15rem;margin:0;font-weight:700;letter-spacing:.01em}
@@ -36,11 +37,14 @@
   .card.sm .v{font-size:.95rem;font-weight:600;color:var(--dim)}
   .pos{color:var(--pos)} .neg{color:var(--neg)}
   .sec{font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin:18px 2px 8px}
+  /* Breda tabeller (särsk. optioner, 9 kol) scrollar HORISONTELLT i sin egen box
+     i stället för att tvinga hela sidan bred → sidan fyller alltid skärmbredden. */
+  .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -2px}
   table{width:100%;border-collapse:collapse;font-size:.84rem}
-  thead th{font-size:.66rem;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;
+  thead th{font-size:.66rem;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;
            text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:600}
   thead th:first-child{text-align:left}
-  tbody td{padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--mono)}
+  tbody td{padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--mono);white-space:nowrap}
   tbody td:first-child{text-align:left;font-family:inherit}
   tbody tr:last-child td{border-bottom:none}
   tbody tr:hover td{background:rgba(255,255,255,.05)}
@@ -144,7 +148,7 @@
 
     if(stocks.length){
       c += '<div class="sec">Aktier ('+stocks.length+')</div>';
-      c += '<table><thead><tr><th>Aktie</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
+      c += '<div class="tbl"><table><thead><tr><th>Aktie</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
       stocks.forEach(function(h){
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span></td>'
            + '<td>'+kr(h.value_sek)+'</td>'
@@ -152,11 +156,11 @@
            + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
            + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td></tr>';
       });
-      c += '</tbody></table>';
+      c += '</tbody></table></div>';
     }
     if(opts.length){
       c += '<div class="sec">Optioner ('+opts.length+')</div>';
-      c += '<table><thead><tr><th>Option</th><th>Strike</th><th>Kurs</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th><th>Slutdatum</th><th>dagar</th></tr></thead><tbody>';
+      c += '<div class="tbl"><table><thead><tr><th>Option</th><th>Strike</th><th>Kurs</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th><th>Slutdatum</th><th>dagar</th></tr></thead><tbody>';
       opts.forEach(function(h){
         var r = h.right==='P'?'PUT':(h.right==='C'?'CALL':'');
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span>'+(r?'<span class="ty">'+r+'</span>':'')+'</td>'
@@ -169,13 +173,13 @@
            + '<td>'+fmtDate(h.expiry)+'</td>'
            + '<td>'+(h.dte!=null? h.dte : '')+'</td></tr>';
       });
-      c += '</tbody></table>';
+      c += '</tbody></table></div>';
     }
     // Saldo (kontanter) som egen sektion → summan av alla andelar = 100 %.
     c += '<div class="sec">Saldo</div>';
-    c += '<table><thead><tr><th>Kontanter</th><th>Värde</th><th>Andel</th></tr></thead><tbody>'
+    c += '<div class="tbl"><table><thead><tr><th>Kontanter</th><th>Värde</th><th>Andel</th></tr></thead><tbody>'
        + '<tr><td>Saldo</td><td>'+kr(cash)+'</td><td>'+apTxt(cash)+'</td></tr>'
-       + '</tbody></table>';
+       + '</tbody></table></div>';
     document.getElementById('content').innerHTML = c;
     shareRenderChart();
     freshness(d.updated_epoch);
