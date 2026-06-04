@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <meta name="robots" content="noindex,nofollow">
+__SHARE_FAVICON__
 <title>Portfölj</title>
 <style>
   :root{
@@ -102,7 +103,7 @@
 
   function render(d){
     document.getElementById('pname').textContent = d.name || 'Portfölj';
-    document.title = (d.name? d.name+' — ':'') + 'Portfölj';
+    document.title = d.name || 'Portfölj';
     // Belåningsgrad = belåning / bruttovärde (hävstångsnivå).
     var belPct = (d.gross_sek ? (d.belaning_sek/d.gross_sek*100).toFixed(2)+'%' : '—');
     var c = ''
