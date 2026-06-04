@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Portfölj</title>
+<style>
+  :root{
+    --bg:#0e1015; --panel:#161922; --panel2:#1b1f2a; --border:#262b38;
+    --text:#e7eaf0; --dim:#9aa3b2; --pos:#22c55e; --neg:#ef4444; --accent:#60a5fa;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       -webkit-font-smoothing:antialiased;padding:0 0 40px}
+  .wrap{max-width:760px;margin:0 auto;padding:16px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px;
+         padding:6px 2px 14px;flex-wrap:wrap}
+  h1{font-size:1.15rem;margin:0;font-weight:700;letter-spacing:.01em}
+  .fresh{display:flex;align-items:center;gap:7px;font-size:.74rem;color:var(--dim);
+         font-family:var(--mono)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}
+  .dot.live{background:var(--pos);box-shadow:0 0 0 3px rgba(34,197,94,.18)}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:4px 0 16px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+  .card .k{font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+  .card .v{font-size:1.3rem;font-weight:700;margin-top:3px;font-family:var(--mono)}
+  .card .s{font-size:.74rem;color:var(--dim);margin-top:2px;font-family:var(--mono)}
+  .pos{color:var(--pos)} .neg{color:var(--neg)}
+  .sec{font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin:18px 2px 8px}
+  table{width:100%;border-collapse:collapse;font-size:.84rem}
+  thead th{font-size:.66rem;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;
+           text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:600}
+  thead th:first-child{text-align:left}
+  tbody td{padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--mono)}
+  tbody td:first-child{text-align:left;font-family:inherit}
+  tbody tr:last-child td{border-bottom:none}
+  .tk{font-weight:700} .ty{font-size:.66rem;color:var(--dim);margin-left:6px}
+  .foot{margin-top:20px;font-size:.7rem;color:var(--dim);text-align:center;line-height:1.6}
+  .msg{padding:40px 16px;text-align:center;color:var(--dim)}
+  @media(max-width:480px){ .cards{grid-template-columns:1fr 1fr} .card .v{font-size:1.15rem} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="pname">Portfölj</h1>
+    <div class="fresh"><span class="dot" id="dot"></span><span id="fresh">laddar…</span></div>
+  </header>
+  <div id="content"><div class="msg" id="msg">Laddar…</div></div>
+  <div class="foot">
+    Skrivskyddad vy. Uppdateras automatiskt.<br>
+    <span id="fx"></span>
+  </div>
+</div>
+<script>
+  var T = new URLSearchParams(location.search).get('t');
+  var K = new URLSearchParams(location.hash.slice(1)).get('k');   // nyckel, ej till servern
+  function msg(t){ var m=document.getElementById('msg'); if(m) m.textContent=t; }
+  function b64ToBytes(b64){ var bin=atob(b64); var u=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
+  function b64uToBytes(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return b64ToBytes(s); }
+  async function decryptBlob(txt){
+    var data=b64ToBytes(txt.trim());
+    var key=await crypto.subtle.importKey('raw', b64uToBytes(K), {name:'AES-GCM'}, false, ['decrypt']);
+    var pt=await crypto.subtle.decrypt({name:'AES-GCM', iv:data.slice(0,12)}, key, data.slice(12));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+  function kr(v){ return (v==null)?'—':Math.round(v).toLocaleString('sv-SE')+' kr'; }
+  function pct(v,dec){ if(v==null) return '—'; var s=(v>=0?'+':'')+v.toFixed(dec==null?1:dec)+'%'; return s; }
+  function cls(v){ return v==null?'':(v>=0?'pos':'neg'); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  function freshness(epoch){
+    var dot=document.getElementById('dot'), f=document.getElementById('fresh');
+    if(!epoch){ dot.className='dot'; f.textContent='okänd'; return; }
+    var age=Math.max(0, Math.floor(Date.now()/1000 - epoch));
+    if(age < 150){
+      dot.className='dot live';
+      f.textContent = 'Live — uppdaterad för ' + (age<60? age+' s':(Math.round(age/60)+' min')) + ' sedan';
+    } else {
+      dot.className='dot';
+      var d=new Date(epoch*1000);
+      f.textContent = 'Ögonblicksbild — ' + d.toLocaleString('sv-SE',{dateStyle:'short',timeStyle:'short'});
+    }
+  }
+
+  function render(d){
+    document.getElementById('pname').textContent = d.name || 'Portfölj';
+    document.title = (d.name? d.name+' — ':'') + 'Portfölj';
+    document.getElementById('fx').textContent = d.usd_sek? ('USD/SEK '+Number(d.usd_sek).toFixed(2)) : '';
+    var c = ''
+      + '<div class="cards">'
+      +   '<div class="card"><div class="k">Mitt värde</div><div class="v">'+kr(d.equity_sek)+'</div>'
+      +     '<div class="s">Andel '+(d.share_pct!=null?Number(d.share_pct).toFixed(2)+'%':'—')+'</div></div>'
+      +   '<div class="card"><div class="k">Utveckling</div><div class="v '+cls(d.pnl_sek)+'">'+(d.pnl_sek!=null?(d.pnl_sek>=0?'+':'')+kr(d.pnl_sek):'—')+'</div>'
+      +     '<div class="s '+cls(d.pnl_pct)+'">'+pct(d.pnl_pct)+'</div></div>'
+      +   '<div class="card"><div class="k">Marknadsexponering</div><div class="v">'+kr(d.gross_sek)+'</div>'
+      +     '<div class="s">brutto</div></div>'
+      +   '<div class="card"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+'</div>'
+      +     '<div class="s">din andel</div></div>'
+      + '</div>';
+
+    var hs = (d.holdings||[]).filter(function(h){return h.value_sek!=null;})
+                .sort(function(a,b){return (b.value_sek||0)-(a.value_sek||0);});
+    c += '<div class="sec">Innehav ('+hs.length+')</div>';
+    c += '<table><thead><tr><th>Innehav</th><th>Värde</th><th>P/L</th><th>xMA</th><th>Dagar</th></tr></thead><tbody>';
+    hs.forEach(function(h){
+      var typ = h.type==='Call' ? (h.expiry? 'OPT '+(h.dte!=null?h.dte+'d':'') : 'OPT') : '';
+      var dgr = (h.days_held!=null? h.days_held : (h.dte!=null? h.dte : ''));
+      c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span>'+(typ?'<span class="ty">'+typ+'</span>':'')+'</td>'
+         + '<td>'+kr(h.value_sek)+'</td>'
+         + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
+         + '<td class="'+cls(h.xma_pct)+'">'+(h.xma_pct!=null?pct(h.xma_pct):'—')+'</td>'
+         + '<td>'+dgr+'</td></tr>';
+    });
+    c += '</tbody></table>';
+    document.getElementById('content').innerHTML = c;
+    freshness(d.updated_epoch);
+  }
+
+  function load(){
+    if(!T){ msg('Ogiltig länk (saknar id).'); return; }
+    fetch('d/'+encodeURIComponent(T)+'.json?_='+Date.now(), {cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw 0; return r.text(); })
+      .then(function(txt){ txt=txt.trim(); return K ? decryptBlob(txt) : JSON.parse(txt); })
+      .then(render)
+      .catch(function(){ msg('Kunde inte hämta/avkoda data. Kontrollera länken.'); freshness(null); });
+  }
+  load();
+  setInterval(load, 30000);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) load(); });
+</script>
+</body>
+</html>
