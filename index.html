@@ -167,10 +167,10 @@
       opts.forEach(function(h){
         var r = h.right==='P'?'PUT':(h.right==='C'?'CALL':'');
         var sub = [];
-        if(h.strike!=null) sub.push('$'+h.strike);
+        if(h.strike!=null) sub.push('strike $'+h.strike);
+        if(h.kurs!=null) sub.push('kurs $'+Number(h.kurs).toFixed(2));
         if(h.expiry) sub.push(fmtDate(h.expiry));
         if(h.dte!=null) sub.push(h.dte+' dgr');
-        if(h.kurs!=null) sub.push('kurs $'+Number(h.kurs).toFixed(2));
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span>'+(r?'<span class="ty">'+r+'</span>':'')
            + '<div class="osub">'+sub.join(' · ')+'</div></td>'
            + '<td>'+kr(h.value_sek)+'</td>'
@@ -230,8 +230,8 @@
     var gsvg=guides.map(function(gx){ return '<line x1="'+gx.toFixed(1)+'" y1="0" x2="'+gx.toFixed(1)+'" y2="'+H+'" stroke="rgba(124,130,144,.6)" stroke-width="1" stroke-dasharray="4 5" vector-effect="non-scaling-stroke"/>'; }).join('');
     wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:170px;display:block">'
       +'<defs><linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">'
-      +'<stop offset="0" stop-color="'+colHex+'" stop-opacity="0.42"/>'
-      +'<stop offset="1" stop-color="'+colHex+'" stop-opacity="0"/></linearGradient></defs>'
+      +'<stop offset="0" stop-color="'+colHex+'" stop-opacity="0.30"/>'
+      +'<stop offset="0.45" stop-color="'+colHex+'" stop-opacity="0"/></linearGradient></defs>'
       +gsvg
       +'<path d="'+areaD+'" fill="url(#chartGrad)"/>'
       +'<line x1="0" y1="'+zeroY+'" x2="'+W+'" y2="'+zeroY+'" stroke="rgba(124,130,144,.4)" stroke-width="1" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"/>'
