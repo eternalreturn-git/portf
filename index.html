@@ -95,13 +95,15 @@
   function render(d){
     document.getElementById('pname').textContent = d.name || 'Portfölj';
     document.title = (d.name? d.name+' — ':'') + 'Portfölj';
+    // Belåningsgrad = belåning / bruttovärde (hävstångsnivå).
+    var belPct = (d.gross_sek ? ' <span style="font-size:.62em;color:var(--dim)">('+(d.belaning_sek/d.gross_sek*100).toFixed(2)+'%)</span>' : '');
     var c = ''
       + '<div class="cards">'
       +   '<div class="card"><div class="k">Totalt eget kapital</div><div class="v">'+kr(d.equity_sek)+'</div></div>'
       +   '<div class="card"><div class="k">Utveckling på insatt kapital</div><div class="v '+cls(d.pnl_sek)+'">'+(d.pnl_sek!=null?(d.pnl_sek>=0?'+':'')+kr(d.pnl_sek):'—')+'</div>'
       +     '<div class="s '+cls(d.pnl_pct)+'">'+pct(d.pnl_pct)+'</div></div>'
       +   '<div class="card sm"><div class="k">Marknadsexponering</div><div class="v">'+kr(d.gross_sek)+'</div></div>'
-      +   '<div class="card sm"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+'</div></div>'
+      +   '<div class="card sm"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+belPct+'</div></div>'
       + '</div>';
 
     // Andel = innehavets värde / (alla innehav + saldo). Summan av alla andelar
