@@ -46,6 +46,14 @@
   .tk{font-weight:700} .ty{font-size:.66rem;color:var(--dim);margin-left:6px}
   .foot{margin-top:20px;font-size:.7rem;color:var(--dim);text-align:center;line-height:1.6}
   .msg{padding:40px 16px;text-align:center;color:var(--dim)}
+  .chtog{display:flex;gap:6px;margin:2px 0 8px;flex-wrap:wrap}
+  .chbtn{background:var(--panel2);border:1px solid var(--border);color:var(--dim);
+         border-radius:8px;padding:4px 13px;font-size:.76rem;cursor:pointer;font-family:var(--mono)}
+  .chbtn.on{background:var(--accent);border-color:var(--accent);color:#08111d;font-weight:700}
+  .chx{text-align:right;font-size:.7rem;color:var(--dim);font-family:var(--mono)}
+  .chwrap{position:relative;margin:2px 0}
+  .chmsg{padding:30px 12px;text-align:center;color:var(--dim);font-size:.8rem}
+  .chdelta{font-size:.86rem;font-family:var(--mono);font-weight:700;text-transform:none;letter-spacing:0;margin-left:6px}
   @media(max-width:480px){ .cards{grid-template-columns:1fr 1fr} .card .v{font-size:1.15rem} }
 </style>
 </head>
@@ -106,6 +114,19 @@
       +   '<div class="card sm"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+'</div><div class="s">'+belPct+'</div></div>'
       + '</div>';
 
+    // Utvecklingsgraf (samma %-serie som GUI:t, utan cirkeldiagram). Tidknapparna
+    // byter period lokalt — all data är redan inbäddad i payloaden.
+    window._shareChart = d.chart || {};
+    if(!window._sharePeriod) window._sharePeriod = 'today';
+    var hasChart = Object.keys(window._shareChart).some(function(k){ return (window._shareChart[k]||[]).length>=2; });
+    if(hasChart){
+      c += '<div class="sec">Portföljens utveckling <span id="chDelta" class="chdelta"></span></div>'
+         + '<div id="chTog" class="chtog"></div>'
+         + '<div id="chHi" class="chx"></div>'
+         + '<div id="chWrap" class="chwrap"></div>'
+         + '<div id="chLo" class="chx"></div>';
+    }
+
     // Andel = innehavets värde / (alla innehav + saldo). Summan av alla andelar
     // (aktier + optioner + saldo) blir därför 100 %.
     var cash = d.cash_sek || 0;
@@ -151,7 +172,55 @@
        + '<tr><td>Saldo</td><td>'+kr(cash)+'</td><td>'+apTxt(cash)+'</td></tr>'
        + '</tbody></table>';
     document.getElementById('content').innerHTML = c;
+    shareRenderChart();
     freshness(d.updated_epoch);
+  }
+
+  function chPeriodLabel(p){ return {today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Å'}[p]||p; }
+  function shareSetPeriod(p){ window._sharePeriod=p; shareRenderChart(); }
+  function shareRenderChart(){
+    var tog=document.getElementById('chTog'); if(!tog) return;   // ingen graf på denna sida
+    var chart=window._shareChart||{}, per=window._sharePeriod||'today';
+    var PERIODS=[['today','Idag'],['1d','1D'],['7d','7D'],['1m','1M'],['ytd','YTD'],['y','1Å']];
+    tog.innerHTML = PERIODS.map(function(kv){
+      return '<button class="chbtn'+(kv[0]===per?' on':'')+'" onclick="shareSetPeriod(\''+kv[0]+'\')">'+kv[1]+'</button>';
+    }).join('');
+    var key=(per==='1d')?'today':per, pts=chart[key]||[];
+    var hi=document.getElementById('chHi'), lo=document.getElementById('chLo'),
+        wrap=document.getElementById('chWrap'), delta=document.getElementById('chDelta');
+    if(pts.length<2){ wrap.innerHTML='<div class="chmsg">Ingen data för "'+chPeriodLabel(per)+'" än.</div>';
+      hi.textContent=''; lo.textContent=''; if(delta) delta.textContent=''; return; }
+    var dayView=(per==='today'||per==='1d');
+    var ps=pts.map(function(o){ return o.p; });
+    var cur=ps[ps.length-1];
+    var loV=Math.min.apply(null,ps.concat(0)), hiV=Math.max.apply(null,ps.concat(0));
+    if(hiV-loV<0.2){ hiV+=0.1; loV-=0.1; }
+    var W=1000,H=200,padY=14, t0,t1,guides=[], xAt;
+    if(dayView){
+      if(per==='1d'){ var d0=new Date(); d0.setHours(0,0,0,0); t0=Math.floor(d0.getTime()/1000); t1=t0+86400; }
+      else { t0=pts[0].t; t1=Math.max(pts[pts.length-1].t, Math.floor(Date.now()/1000)); }
+      var span=Math.max(1,t1-t0);
+      xAt=function(i){ return ((pts[i].t-t0)/span)*W; };
+      [[15,30],[22,0]].forEach(function(hm){ var d=new Date(); d.setHours(hm[0],hm[1],0,0);
+        var tg=Math.floor(d.getTime()/1000); if(tg>=t0&&tg<=t1) guides.push(((tg-t0)/span)*W); });
+    } else {
+      xAt=function(i){ return pts.length===1?0:(i/(pts.length-1))*W; };
+    }
+    function y(p){ return padY+(1-(p-loV)/(hiV-loV))*(H-2*padY); }
+    var lineD=ps.map(function(p,i){ return (i?'L':'M')+xAt(i).toFixed(1)+','+y(p).toFixed(1); }).join(' ');
+    var zeroY=y(0).toFixed(1), col=cur>=0?'var(--pos)':'var(--neg)';
+    var x0=xAt(0).toFixed(1), xN=xAt(pts.length-1).toFixed(1);
+    var areaD='M'+x0+','+zeroY+' '+ps.map(function(p,i){ return 'L'+xAt(i).toFixed(1)+','+y(p).toFixed(1); }).join(' ')+' L'+xN+','+zeroY+' Z';
+    var gsvg=guides.map(function(gx){ return '<line x1="'+gx.toFixed(1)+'" y1="0" x2="'+gx.toFixed(1)+'" y2="'+H+'" stroke="rgba(124,130,144,.6)" stroke-width="1" stroke-dasharray="4 5" vector-effect="non-scaling-stroke"/>'; }).join('');
+    wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:170px;display:block">'
+      +gsvg
+      +'<path d="'+areaD+'" fill="'+col+'" opacity="0.12"/>'
+      +'<line x1="0" y1="'+zeroY+'" x2="'+W+'" y2="'+zeroY+'" stroke="rgba(124,130,144,.4)" stroke-width="1" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"/>'
+      +'<path d="'+lineD+'" fill="none" stroke="'+col+'" stroke-width="2" vector-effect="non-scaling-stroke"/>'
+      +'</svg>';
+    hi.textContent='Högst '+hiV.toFixed(2)+'%';
+    lo.textContent='Lägst '+loV.toFixed(2)+'%';
+    if(delta){ delta.textContent=(cur>=0?'+':'')+cur.toFixed(2)+'%'; delta.className='chdelta '+(cur>=0?'pos':'neg'); }
   }
 
   function load(){
