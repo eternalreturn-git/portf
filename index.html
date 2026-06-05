@@ -258,7 +258,7 @@
     if(delta){ delta.textContent=(cur>=0?'+':'')+cur.toFixed(2)+'%'; delta.className='chdelta '+(cur>=0?'pos':'neg'); }
     // Hårkors: %-värde + klockslag vid hover/touch (delningssidan har bara %).
     window._shareHover = pts.map(function(o,i){ return {xf:xAt(i)/W, t:o.t, p:o.p}; });
-    window._shareHoverDay = dayView;
+    window._shareHoverPeriod = per;
     if(!wrap._crossBound){
       wrap._crossBound=true;
       wrap.addEventListener('mousemove', shareCross);
@@ -268,10 +268,11 @@
       wrap.addEventListener('touchend', shareCrossHide);
     }
   }
-  function shareFmtTime(t,dayView){ var d=new Date(t*1000);
-    var hh=('0'+d.getHours()).slice(-2), mm=('0'+d.getMinutes()).slice(-2);
-    if(dayView) return hh+':'+mm;
-    return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+' '+hh+':'+mm; }
+  var SV_MON=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+  function shareFmtTime(t,period){ var d=new Date(t*1000), p2=function(n){ return ('0'+n).slice(-2); };
+    if(period==='today'||period==='1d') return p2(d.getHours())+':'+p2(d.getMinutes());   // endast klockslag
+    if(period==='all') return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());  // YYYY-mm-dd
+    return d.getDate()+' '+SV_MON[d.getMonth()]; }                                          // "5 feb"
   function shareCross(e){
     var wrap=document.getElementById('chWrap'), hp=window._shareHover;
     if(!wrap||!hp||!hp.length) return;
@@ -296,7 +297,7 @@
     tip.style.display='block'; tip.textContent=txt;
     tip.style.color=sign?'var(--pos)':'var(--neg)';
     tip.style.left=Math.max(64, Math.min(rect.width-64, px))+'px';
-    tm.style.display='block'; tm.textContent=shareFmtTime(pt.t, window._shareHoverDay);
+    tm.style.display='block'; tm.textContent=shareFmtTime(pt.t, window._shareHoverPeriod);
     tm.style.left=Math.max(24, Math.min(rect.width-24, px))+'px';
   }
   function shareCrossHide(){
