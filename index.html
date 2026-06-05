@@ -231,7 +231,7 @@
       else { t0=pts[0].t; t1=Math.max(pts[pts.length-1].t, Math.floor(Date.now()/1000)); }
       var span=Math.max(1,t1-t0);
       xAt=function(i){ return ((pts[i].t-t0)/span)*W; };
-      [[15,30,'15.30'],[22,0,'22.00']].forEach(function(hm){ var d=new Date(); d.setHours(hm[0],hm[1],0,0);
+      [[2,0,'02.00'],[10,0,'10.00'],[15,30,'15.30'],[22,0,'22.00']].forEach(function(hm){ var d=new Date(); d.setHours(hm[0],hm[1],0,0);
         var tg=Math.floor(d.getTime()/1000); if(tg>=t0&&tg<=t1) guides.push({x:((tg-t0)/span)*W, label:hm[2]}); });
     } else {
       xAt=function(i){ return pts.length===1?0:(i/(pts.length-1))*W; };
