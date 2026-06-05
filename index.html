@@ -190,12 +190,12 @@
     freshness(d.updated_epoch);
   }
 
-  function chPeriodLabel(p){ return {today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Å',all:'Allt'}[p]||p; }
+  function chPeriodLabel(p){ return {today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
   function shareSetPeriod(p){ window._sharePeriod=p; shareRenderChart(); }
   function shareRenderChart(){
     var tog=document.getElementById('chTog'); if(!tog) return;   // ingen graf på denna sida
     var chart=window._shareChart||{}, per=window._sharePeriod||'today';
-    var PERIODS=[['today','Idag'],['1d','1D'],['7d','7D'],['1m','1M'],['ytd','YTD'],['y','1Å'],['all','Allt']];
+    var PERIODS=[['today','Idag'],['1d','1D'],['7d','7D'],['1m','1M'],['ytd','YTD'],['y','1Y'],['all','Allt']];
     tog.innerHTML = PERIODS.map(function(kv){
       return '<button class="chbtn'+(kv[0]===per?' on':'')+'" onclick="shareSetPeriod(\''+kv[0]+'\')">'+kv[1]+'</button>';
     }).join('');
@@ -227,7 +227,7 @@
     if(hiV-loV<0.2){ hiV+=0.1; loV-=0.1; }
     var W=1000,H=200,padY=14, t0,t1,guides=[], xAt;
     if(dayView){
-      if(per==='1d'){ var d0=new Date(); d0.setHours(2,0,0,0); var _t=Math.floor(d0.getTime()/1000); if(_t>Math.floor(Date.now()/1000)) _t-=86400; t0=_t; t1=t0+86400; }
+      if(per==='1d'){ var d0=new Date(); d0.setHours(0,0,0,0); var _t=Math.floor(d0.getTime()/1000); if(_t>Math.floor(Date.now()/1000)) _t-=86400; t0=_t; t1=t0+86400; }
       else { t0=pts[0].t; t1=Math.max(pts[pts.length-1].t, Math.floor(Date.now()/1000)); }
       var span=Math.max(1,t1-t0);
       xAt=function(i){ return ((pts[i].t-t0)/span)*W; };
