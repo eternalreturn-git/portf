@@ -242,7 +242,9 @@
       var ssrc=(window._shareSpy||{})[spyKey]||[];
       if(ssrc.length>=2){ var b0=ssrc[0].p; _spyPts=ssrc.map(function(o){ return {t:o.t, p:o.p-b0}; }); }
     }
-    var loV=Math.min.apply(null,ps.concat(0)), hiV=Math.max.apply(null,ps.concat(0));
+    // PORTFÖLJENS egna extremer (för Högst/Lägst). Y-skalan vidgas av SPY men etiketterna visar portföljen.
+    var pHiV=Math.max.apply(null,ps.concat(0)), pLoV=Math.min.apply(null,ps.concat(0));
+    var loV=pLoV, hiV=pHiV;
     if(_spyPts){ _spyPts.forEach(function(s){ if(s.p<loV)loV=s.p; if(s.p>hiV)hiV=s.p; }); }
     if(hiV-loV<0.2){ hiV+=0.1; loV-=0.1; }
     var W=1000,H=200,padY=14, t0,t1,guides=[], marketLines=[], xAt;
@@ -311,8 +313,8 @@
       +spyLine
       +'<path d="'+lineD+'" fill="none" stroke="'+col+'" stroke-width="2" vector-effect="non-scaling-stroke"/>'
       +'</svg><div class="chcross"></div><div class="chtip"></div><div class="chtime"></div>'+glabels;
-    hi.textContent='Högst '+hiV.toFixed(2)+'%';
-    lo.textContent='Lägst '+loV.toFixed(2)+'%';
+    hi.textContent='Högst '+pHiV.toFixed(2)+'%';
+    lo.textContent='Lägst '+pLoV.toFixed(2)+'%';
     if(delta){ delta.textContent=(cur>=0?'+':'')+cur.toFixed(2)+'%'; delta.className='chdelta '+(cur>=0?'pos':'neg'); }
     // Hårkors: %-värde + klockslag vid hover/touch (delningssidan har bara %).
     window._shareHover = pts.map(function(o,i){ return {xf:xAt(i)/W, t:o.t, p:o.p}; });
