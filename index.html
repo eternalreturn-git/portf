@@ -56,6 +56,13 @@
   .chbtn{background:var(--panel2);border:1px solid var(--border);color:var(--dim);
          border-radius:8px;padding:4px 13px;font-size:.76rem;cursor:pointer;font-family:var(--mono)}
   .chbtn.on{background:var(--accent);border-color:var(--accent);color:#08111d;font-weight:700}
+  /* SPY-toggle (samma stil som GUI:ts switchar) */
+  .tgl{position:relative;display:inline-block;width:32px;height:18px;flex:none}
+  .tgl input{opacity:0;width:0;height:0;position:absolute}
+  .tgl .sl{position:absolute;inset:0;background:var(--panel2);border:1px solid var(--border);border-radius:18px;transition:.15s;cursor:pointer}
+  .tgl .sl:before{content:'';position:absolute;height:12px;width:12px;left:2px;top:2px;background:var(--dim);border-radius:50%;transition:.15s}
+  .tgl input:checked + .sl{background:rgba(34,197,94,.18);border-color:#22c55e66}
+  .tgl input:checked + .sl:before{transform:translateX(14px);background:#22c55e}
   .chx{text-align:right;font-size:.7rem;color:var(--dim);font-family:var(--mono)}
   .chwrap{position:relative;margin:2px 0;touch-action:none}
   .chmsg{padding:30px 12px;text-align:center;color:var(--dim);font-size:.8rem}
@@ -202,7 +209,7 @@
     var spyHas = Object.keys(window._shareSpy||{}).some(function(k){ return (window._shareSpy[k]||[]).length>=2; });
     tog.innerHTML = PERIODS.map(function(kv){
       return '<button class="chbtn'+(kv[0]===per?' on':'')+'" onclick="shareSetPeriod(\''+kv[0]+'\')">'+kv[1]+'</button>';
-    }).join('') + (spyHas ? '<label style="display:inline-flex;align-items:center;gap:5px;margin-left:auto;font-size:.78rem;color:var(--dim);cursor:pointer;white-space:nowrap"><input type="checkbox" '+(window._shareSpyOn?'checked':'')+' onchange="shareToggleSpy(this.checked)" style="margin:0;cursor:pointer"> SPY</label>' : '');
+    }).join('') + (spyHas ? '<label style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:.78rem;color:var(--text);cursor:pointer;white-space:nowrap"><span class="tgl"><input type="checkbox" '+(window._shareSpyOn?'checked':'')+' onchange="shareToggleSpy(this.checked)"><span class="sl"></span></span>SPY <span id="spyVal" style="font-family:var(--mono)"></span></label>' : '');
     var key=(per==='1d')?'today':per, pts=chart[key]||[];
     // Spik-spärr (rullande median) — städa ev. glitch i den inbäddade datan så sidan
     // SJÄLVLÄKER vid ritning, även om den publicerade serien har en gammal spik. Bara
@@ -282,6 +289,11 @@
       spyLine='<path d="'+_spyPts.map(function(s,i){ return (i?'L':'M')+(Math.max(0,Math.min(W,((s.t-sF)/sSpan)*W))).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
         +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
     }
+    // SPY-värdet vid switchen (inte i grafen → ingen krock).
+    (function(){ var sv=document.getElementById('spyVal'); if(!sv) return;
+      if(window._shareSpyOn && _spyPts && _spyPts.length){ var sp=_spyPts[_spyPts.length-1].p;
+        sv.textContent=(sp>=0?'+':'')+sp.toFixed(2)+'%'; sv.style.color=sp>=0?'var(--pos)':'var(--neg)'; }
+      else { sv.textContent=''; } })();
     var zeroY=y(0).toFixed(1), col=cur>=0?'var(--pos)':'var(--neg)';
     var colHex=cur>=0?'#22c55e':'#ef4444';
     var x0=xAt(0).toFixed(1), xN=xAt(pts.length-1).toFixed(1);
