@@ -136,7 +136,8 @@
     window._shareSpy = d.spy || {};        // SPY-överlägg (per period, normaliserad %)
     if(window._shareSpyOn===undefined){ try{ window._shareSpyOn = localStorage.getItem('share_spy_on')==='1'; }catch(e){ window._shareSpyOn=false; } }
     window._shareEquity = (typeof d.equity_sek==='number') ? d.equity_sek : null;
-    if(!window._sharePeriod) window._sharePeriod = 'today';
+    if(!window._sharePeriod){ var _sp=null; try{ _sp=localStorage.getItem('share_period'); }catch(e){}
+      window._sharePeriod = (['1h','today','1d','7d','1m','ytd','y','all'].indexOf(_sp)>=0) ? _sp : 'today'; }
     var hasChart = Object.keys(window._shareChart).some(function(k){ return (window._shareChart[k]||[]).length>=2; });
     if(hasChart){
       c += '<div class="sec">Portföljens utveckling <span id="chDelta" class="chdelta"></span></div>'
@@ -200,7 +201,7 @@
   }
 
   function chPeriodLabel(p){ return {'1h':'senaste timmen',today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
-  function shareSetPeriod(p){ window._sharePeriod=p; shareRenderChart(); }
+  function shareSetPeriod(p){ window._sharePeriod=p; try{ localStorage.setItem('share_period', p); }catch(e){} shareRenderChart(); }
   function shareToggleSpy(on){ window._shareSpyOn=!!on; try{ localStorage.setItem('share_spy_on', on?'1':'0'); }catch(e){} shareRenderChart(); }
   function shareRenderChart(){
     var tog=document.getElementById('chTog'); if(!tog) return;   // ingen graf på denna sida
@@ -209,7 +210,7 @@
     var spyHas = Object.keys(window._shareSpy||{}).some(function(k){ return (window._shareSpy[k]||[]).length>=2; });
     tog.innerHTML = PERIODS.map(function(kv){
       return '<button class="chbtn'+(kv[0]===per?' on':'')+'" onclick="shareSetPeriod(\''+kv[0]+'\')">'+kv[1]+'</button>';
-    }).join('') + (spyHas ? '<label style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:.78rem;color:var(--text);cursor:pointer;white-space:nowrap"><span class="tgl"><input type="checkbox" '+(window._shareSpyOn?'checked':'')+' onchange="shareToggleSpy(this.checked)"><span class="sl"></span></span>SPY <span id="spyVal" style="font-family:var(--mono)"></span></label>' : '');
+    }).join('') + (spyHas ? '<label style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:.78rem;color:var(--text);cursor:pointer;white-space:nowrap"><span class="tgl"><input type="checkbox" '+(window._shareSpyOn?'checked':'')+' onchange="shareToggleSpy(this.checked)"><span class="sl"></span></span>SPY <span id="spyVal" style="font-family:var(--mono);display:inline-block;width:56px;text-align:left"></span></label>' : '');
     var key=(per==='1d')?'today':per, pts=chart[key]||[];
     // Spik-spärr (rullande median) — städa ev. glitch i den inbäddade datan så sidan
     // SJÄLVLÄKER vid ritning, även om den publicerade serien har en gammal spik. Bara
