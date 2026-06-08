@@ -190,12 +190,12 @@
     freshness(d.updated_epoch);
   }
 
-  function chPeriodLabel(p){ return {today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
+  function chPeriodLabel(p){ return {'1h':'senaste timmen',today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
   function shareSetPeriod(p){ window._sharePeriod=p; shareRenderChart(); }
   function shareRenderChart(){
     var tog=document.getElementById('chTog'); if(!tog) return;   // ingen graf på denna sida
     var chart=window._shareChart||{}, per=window._sharePeriod||'today';
-    var PERIODS=[['today','Idag'],['1d','1D'],['7d','7D'],['1m','1M'],['ytd','YTD'],['y','1Y'],['all','Allt']];
+    var PERIODS=[['1h','1H'],['today','Idag'],['1d','1D'],['7d','7D'],['1m','1M'],['ytd','YTD'],['y','1Y'],['all','Allt']];
     tog.innerHTML = PERIODS.map(function(kv){
       return '<button class="chbtn'+(kv[0]===per?' on':'')+'" onclick="shareSetPeriod(\''+kv[0]+'\')">'+kv[1]+'</button>';
     }).join('');
@@ -203,7 +203,7 @@
     // Spik-spärr (rullande median) — städa ev. glitch i den inbäddade datan så sidan
     // SJÄLVLÄKER vid ritning, även om den publicerade serien har en gammal spik. Bara
     // intradag-vyer (1M/YTD/1Å = dygnsvärden där en volatil dag är äkta).
-    if((per==='today'||per==='1d'||per==='7d') && pts.length>=5){
+    if((per==='1h'||per==='today'||per==='1d'||per==='7d') && pts.length>=5){
       var _pv=pts.map(function(o){ return o.p; }), _N=_pv.length, _W=4;
       pts=pts.filter(function(o,i){
         var p=o.p, a=(i>0)?_pv[i-1]:null, b=(i<_N-1)?_pv[i+1]:null;
@@ -220,25 +220,33 @@
         wrap=document.getElementById('chWrap'), delta=document.getElementById('chDelta');
     if(pts.length<2){ wrap.innerHTML='<div class="chmsg">Ingen data för "'+chPeriodLabel(per)+'" än.</div>';
       hi.textContent=''; lo.textContent=''; if(delta) delta.textContent=''; return; }
-    var dayView=(per==='today'||per==='1d');
+    var dayView=(per==='today'||per==='1d'), hourView=(per==='1h'), timeView=dayView||hourView;
     var ps=pts.map(function(o){ return o.p; });
     var cur=ps[ps.length-1];
     var loV=Math.min.apply(null,ps.concat(0)), hiV=Math.max.apply(null,ps.concat(0));
     if(hiV-loV<0.2){ hiV+=0.1; loV-=0.1; }
     var W=1000,H=200,padY=14, t0,t1,guides=[], marketLines=[], xAt;
     function _p2(n){ return (n<10?'0':'')+n; }
-    if(dayView){
+    if(timeView){
       if(per==='1d'){ var d0=new Date(); d0.setHours(0,0,0,0); var _t=Math.floor(d0.getTime()/1000); if(_t>Math.floor(Date.now()/1000)) _t-=86400; t0=_t; t1=t0+86400; }
       else { t0=pts[0].t; t1=Math.max(pts[pts.length-1].t, Math.floor(Date.now()/1000)); }
       var span=Math.max(1,t1-t0);
       xAt=function(i){ return ((pts[i].t-t0)/span)*W; };
-      // TIMTICK på varje hel timme (adaptivt steg så de inte trängs).
-      var hrs=span/3600, hstep=hrs<=8?1:(hrs<=16?2:3);
-      var hd=new Date(t0*1000); hd.setMinutes(0,0,0);
-      if(hd.getTime()<t0*1000) hd.setHours(hd.getHours()+1);
-      while(hd.getHours()%hstep!==0) hd.setHours(hd.getHours()+1);
-      for(var tg=Math.floor(hd.getTime()/1000); tg<=t1; tg+=hstep*3600){ var dh=new Date(tg*1000);
-        guides.push({x:((tg-t0)/span)*W, label:_p2(dh.getHours())+'.00'}); }
+      if(hourView){
+        // 1h: tick var 10:e minut (HH:MM).
+        var md0=new Date(t0*1000); md0.setSeconds(0,0);
+        md0.setMinutes(md0.getMinutes() - (md0.getMinutes()%10) + 10);
+        for(var mtg2=Math.floor(md0.getTime()/1000); mtg2<=t1; mtg2+=600){ var dm=new Date(mtg2*1000);
+          guides.push({x:((mtg2-t0)/span)*W, label:_p2(dm.getHours())+':'+_p2(dm.getMinutes())}); }
+      } else {
+        // TIMTICK på varje hel timme (adaptivt steg så de inte trängs).
+        var hrs=span/3600, hstep=hrs<=8?1:(hrs<=16?2:3);
+        var hd=new Date(t0*1000); hd.setMinutes(0,0,0);
+        if(hd.getTime()<t0*1000) hd.setHours(hd.getHours()+1);
+        while(hd.getHours()%hstep!==0) hd.setHours(hd.getHours()+1);
+        for(var tg=Math.floor(hd.getTime()/1000); tg<=t1; tg+=hstep*3600){ var dh=new Date(tg*1000);
+          guides.push({x:((tg-t0)/span)*W, label:_p2(dh.getHours())+'.00'}); }
+      }
       // VERTIKALA marknads-linjer (02.00/10.00/15.30/22.00) om de ligger i vyn.
       [[2,0],[10,0],[15,30],[22,0]].forEach(function(hm){ var mdt=new Date(); mdt.setHours(hm[0],hm[1],0,0);
         var mtg=Math.floor(mdt.getTime()/1000); if(mtg>=t0&&mtg<=t1) marketLines.push(((mtg-t0)/span)*W); });
@@ -287,7 +295,7 @@
   }
   var SV_MON=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
   function shareFmtTime(t,period){ var d=new Date(t*1000), p2=function(n){ return ('0'+n).slice(-2); };
-    if(period==='today'||period==='1d') return p2(d.getHours())+':'+p2(d.getMinutes());   // endast klockslag
+    if(period==='today'||period==='1d'||period==='1h') return p2(d.getHours())+':'+p2(d.getMinutes());   // endast klockslag
     if(period==='all') return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());  // YYYY-mm-dd
     return d.getDate()+' '+SV_MON[d.getMonth()]; }                                          // "5 feb"
   function shareCross(e){
