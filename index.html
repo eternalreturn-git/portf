@@ -288,8 +288,8 @@
     // SPY-linje (grå, ren linje): SPY:s egen sträcka spänns över hela bredden (0% vänster → höger).
     var spyLine='';
     if(_spyPts && _spyPts.length>=2){
-      var sF=_spyPts[0].t, sSpan=Math.max(1,_spyPts[_spyPts.length-1].t-sF);
-      spyLine='<path d="'+_spyPts.map(function(s,i){ return (i?'L':'M')+(Math.max(0,Math.min(W,((s.t-sF)/sSpan)*W))).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
+      var _sn=_spyPts.length;   // JÄMN fördelning (index) → inga lucksträck över helg/natt
+      spyLine='<path d="'+_spyPts.map(function(s,i){ return (i?'L':'M')+(_sn===1?0:(i/(_sn-1))*W).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
         +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
     }
     // SPY-värdet vid switchen (inte i grafen → ingen krock).
