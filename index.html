@@ -126,6 +126,8 @@
     // Utvecklingsgraf (samma %-serie som GUI:t, utan cirkeldiagram). Tidknapparna
     // byter period lokalt — all data är redan inbäddad i payloaden.
     window._shareChart = d.chart || {};
+    window._shareSpy = d.spy || {};        // SPY-överlägg (per period, normaliserad %)
+    if(window._shareSpyOn===undefined){ try{ window._shareSpyOn = localStorage.getItem('share_spy_on')==='1'; }catch(e){ window._shareSpyOn=false; } }
     window._shareEquity = (typeof d.equity_sek==='number') ? d.equity_sek : null;
     if(!window._sharePeriod) window._sharePeriod = 'today';
     var hasChart = Object.keys(window._shareChart).some(function(k){ return (window._shareChart[k]||[]).length>=2; });
@@ -192,13 +194,15 @@
 
   function chPeriodLabel(p){ return {'1h':'senaste timmen',today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
   function shareSetPeriod(p){ window._sharePeriod=p; shareRenderChart(); }
+  function shareToggleSpy(on){ window._shareSpyOn=!!on; try{ localStorage.setItem('share_spy_on', on?'1':'0'); }catch(e){} shareRenderChart(); }
   function shareRenderChart(){
     var tog=document.getElementById('chTog'); if(!tog) return;   // ingen graf på denna sida
     var chart=window._shareChart||{}, per=window._sharePeriod||'today';
     var PERIODS=[['1h','1H'],['today','Idag'],['1d','1D'],['7d','7D'],['1m','1M'],['ytd','YTD'],['y','1Y'],['all','Allt']];
+    var spyHas = Object.keys(window._shareSpy||{}).some(function(k){ return (window._shareSpy[k]||[]).length>=2; });
     tog.innerHTML = PERIODS.map(function(kv){
       return '<button class="chbtn'+(kv[0]===per?' on':'')+'" onclick="shareSetPeriod(\''+kv[0]+'\')">'+kv[1]+'</button>';
-    }).join('');
+    }).join('') + (spyHas ? '<label style="display:inline-flex;align-items:center;gap:5px;margin-left:auto;font-size:.78rem;color:var(--dim);cursor:pointer;white-space:nowrap"><input type="checkbox" '+(window._shareSpyOn?'checked':'')+' onchange="shareToggleSpy(this.checked)" style="margin:0;cursor:pointer"> SPY</label>' : '');
     var key=(per==='1d')?'today':per, pts=chart[key]||[];
     // Spik-spärr (rullande median) — städa ev. glitch i den inbäddade datan så sidan
     // SJÄLVLÄKER vid ritning, även om den publicerade serien har en gammal spik. Bara
@@ -223,7 +227,15 @@
     var dayView=(per==='today'||per==='1d'), hourView=(per==='1h'), timeView=dayView||hourView;
     var ps=pts.map(function(o){ return o.p; });
     var cur=ps[ps.length-1];
+    // SPY-överlägg: normaliserad %-serie (0% vid start), spänns över hela bredden (som GUI:t).
+    var _spyPts=null;
+    if(window._shareSpyOn){
+      var spyKey=(per==='1d')?'today':per;
+      var ssrc=(window._shareSpy||{})[spyKey]||[];
+      if(ssrc.length>=2){ var b0=ssrc[0].p; _spyPts=ssrc.map(function(o){ return {t:o.t, p:o.p-b0}; }); }
+    }
     var loV=Math.min.apply(null,ps.concat(0)), hiV=Math.max.apply(null,ps.concat(0));
+    if(_spyPts){ _spyPts.forEach(function(s){ if(s.p<loV)loV=s.p; if(s.p>hiV)hiV=s.p; }); }
     if(hiV-loV<0.2){ hiV+=0.1; loV-=0.1; }
     var W=1000,H=200,padY=14, t0,t1,guides=[], marketLines=[], xAt;
     function _p2(n){ return (n<10?'0':'')+n; }
@@ -263,6 +275,13 @@
     }
     function y(p){ return padY+(1-(p-loV)/(hiV-loV))*(H-2*padY); }
     var lineD=ps.map(function(p,i){ return (i?'L':'M')+xAt(i).toFixed(1)+','+y(p).toFixed(1); }).join(' ');
+    // SPY-linje (grå, ren linje): SPY:s egen sträcka spänns över hela bredden (0% vänster → höger).
+    var spyLine='';
+    if(_spyPts && _spyPts.length>=2){
+      var sF=_spyPts[0].t, sSpan=Math.max(1,_spyPts[_spyPts.length-1].t-sF);
+      spyLine='<path d="'+_spyPts.map(function(s,i){ return (i?'L':'M')+(Math.max(0,Math.min(W,((s.t-sF)/sSpan)*W))).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
+        +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
+    }
     var zeroY=y(0).toFixed(1), col=cur>=0?'var(--pos)':'var(--neg)';
     var colHex=cur>=0?'#22c55e':'#ef4444';
     var x0=xAt(0).toFixed(1), xN=xAt(pts.length-1).toFixed(1);
@@ -276,6 +295,7 @@
       +'<stop offset="1" stop-color="'+colHex+'" stop-opacity="0"/></linearGradient></defs>'
       +mktsvg
       +'<path d="'+areaD+'" fill="url(#chartGrad)"/>'
+      +spyLine
       +'<path d="'+lineD+'" fill="none" stroke="'+col+'" stroke-width="2" vector-effect="non-scaling-stroke"/>'
       +'</svg><div class="chcross"></div><div class="chtip"></div><div class="chtime"></div>'+glabels;
     hi.textContent='Högst '+hiV.toFixed(2)+'%';
