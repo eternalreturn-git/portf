@@ -225,7 +225,7 @@
     var cur=ps[ps.length-1];
     var loV=Math.min.apply(null,ps.concat(0)), hiV=Math.max.apply(null,ps.concat(0));
     if(hiV-loV<0.2){ hiV+=0.1; loV-=0.1; }
-    var W=1000,H=200,padY=14, t0,t1,guides=[], xAt;
+    var W=1000,H=200,padY=14, t0,t1,guides=[], marketLines=[], xAt;
     function _p2(n){ return (n<10?'0':'')+n; }
     if(dayView){
       if(per==='1d'){ var d0=new Date(); d0.setHours(0,0,0,0); var _t=Math.floor(d0.getTime()/1000); if(_t>Math.floor(Date.now()/1000)) _t-=86400; t0=_t; t1=t0+86400; }
@@ -239,6 +239,9 @@
       while(hd.getHours()%hstep!==0) hd.setHours(hd.getHours()+1);
       for(var tg=Math.floor(hd.getTime()/1000); tg<=t1; tg+=hstep*3600){ var dh=new Date(tg*1000);
         guides.push({x:((tg-t0)/span)*W, label:_p2(dh.getHours())+'.00'}); }
+      // VERTIKALA marknads-linjer (02.00/10.00/15.30/22.00) om de ligger i vyn.
+      [[2,0],[10,0],[15,30],[22,0]].forEach(function(hm){ var mdt=new Date(); mdt.setHours(hm[0],hm[1],0,0);
+        var mtg=Math.floor(mdt.getTime()/1000); if(mtg>=t0&&mtg<=t1) marketLines.push(((mtg-t0)/span)*W); });
     } else {
       xAt=function(i){ return pts.length===1?0:(i/(pts.length-1))*W; };
       // DATUM/MÅNAD-etiketter vid gränsbyten (7D/1M = dag, YTD/1Y = månad, Allt = månad+år).
@@ -257,12 +260,13 @@
     var x0=xAt(0).toFixed(1), xN=xAt(pts.length-1).toFixed(1);
     // Yta UNDER linjen med lodrät gradient: mättad närmast linjen, transparent nederst.
     var areaD='M'+x0+','+H+' '+ps.map(function(p,i){ return 'L'+xAt(i).toFixed(1)+','+y(p).toFixed(1); }).join(' ')+' L'+xN+','+H+' Z';
-    var gsvg=guides.map(function(g){ return '<line x1="'+g.x.toFixed(1)+'" y1="0" x2="'+g.x.toFixed(1)+'" y2="'+H+'" stroke="rgba(124,130,144,.6)" stroke-width="1" stroke-dasharray="4 5" vector-effect="non-scaling-stroke"/>'; }).join('');
+    var mktsvg=marketLines.map(function(mx){ return '<line x1="'+mx.toFixed(1)+'" y1="0" x2="'+mx.toFixed(1)+'" y2="'+H+'" stroke="rgba(124,130,144,.6)" stroke-width="1" stroke-dasharray="4 5" vector-effect="non-scaling-stroke"/>'; }).join('');
     var glabels=guides.map(function(g){ return '<div style="position:absolute;bottom:1px;left:'+(g.x/W*100).toFixed(2)+'%;transform:translateX(-50%);font-size:.6rem;color:rgba(124,130,144,.9);font-family:var(--mono);pointer-events:none;background:rgba(4,4,5,.6);padding:0 3px;border-radius:3px;line-height:1.4">'+g.label+'</div>'; }).join('');
     wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:170px;display:block">'
       +'<defs><linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">'
       +'<stop offset="0" stop-color="'+colHex+'" stop-opacity="0.075"/>'
       +'<stop offset="1" stop-color="'+colHex+'" stop-opacity="0"/></linearGradient></defs>'
+      +mktsvg
       +'<path d="'+areaD+'" fill="url(#chartGrad)"/>'
       +'<path d="'+lineD+'" fill="none" stroke="'+col+'" stroke-width="2" vector-effect="non-scaling-stroke"/>'
       +'</svg><div class="chcross"></div><div class="chtip"></div><div class="chtime"></div>'+glabels;
