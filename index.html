@@ -67,6 +67,7 @@
   .chwrap{position:relative;margin:2px 0;touch-action:none}
   .chmsg{padding:30px 12px;text-align:center;color:var(--dim);font-size:.8rem}
   .chcross{position:absolute;top:0;height:170px;width:1px;background:rgba(180,186,200,.55);pointer-events:none;display:none;z-index:2}
+  .chcross-h{position:absolute;left:0;width:100%;height:1px;background:rgba(180,186,200,.55);pointer-events:none;display:none;z-index:2}
   .chtip{position:absolute;top:0;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:.74rem;font-family:var(--mono);font-weight:700;pointer-events:none;display:none;white-space:nowrap;z-index:3}
   .chtime{position:absolute;top:146px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:1px 6px;font-size:.7rem;color:var(--text);font-family:var(--mono);pointer-events:none;display:none;white-space:nowrap;z-index:3}
   .chdelta{font-size:.86rem;font-family:var(--mono);font-weight:700;text-transform:none;letter-spacing:0;margin-left:6px}
@@ -379,12 +380,12 @@
       +'<path d="'+areaD+'" fill="url(#chartGrad)"/>'
       +spyLine
       +'<path d="'+lineD+'" fill="none" stroke="'+col+'" stroke-width="2" vector-effect="non-scaling-stroke"/>'
-      +'</svg><div class="chcross"></div><div class="chtip"></div><div class="chtime"></div>'+glabels+flowMarks;
+      +'</svg><div class="chcross"></div><div class="chcross-h"></div><div class="chtip"></div><div class="chtime"></div>'+glabels+flowMarks;
     hi.textContent='Högst '+pHiV.toFixed(2)+'%';
     lo.textContent='Lägst '+pLoV.toFixed(2)+'%';
     if(delta){ delta.textContent=(cur>=0?'+':'')+cur.toFixed(2)+'%'; delta.className='chdelta '+(cur>=0?'pos':'neg'); }
     // Hårkors: %-värde + klockslag vid hover/touch (delningssidan har bara %).
-    window._shareHover = pts.map(function(o,i){ return {xf:xAt(i)/W, t:o.t, p:o.p, kr:krSeries[i]}; });
+    window._shareHover = pts.map(function(o,i){ return {xf:xAt(i)/W, yf:y(o.p)/H, t:o.t, p:o.p, kr:krSeries[i]}; });
     window._shareHoverPeriod = per;
     if(!wrap._crossBound){
       wrap._crossBound=true;
@@ -411,9 +412,10 @@
     var best=0, bd=9;
     for(var i=0;i<hp.length;i++){ var dd=Math.abs(hp[i].xf-frac); if(dd<bd){ bd=dd; best=i; } }
     var pt=hp[best], px=pt.xf*rect.width, sign=pt.p>=0;
-    var cross=wrap.querySelector('.chcross'), tip=wrap.querySelector('.chtip'), tm=wrap.querySelector('.chtime');
+    var cross=wrap.querySelector('.chcross'), crossH=wrap.querySelector('.chcross-h'), tip=wrap.querySelector('.chtip'), tm=wrap.querySelector('.chtime');
     if(!cross||!tip||!tm) return;
     cross.style.display='block'; cross.style.left=px+'px';
+    if(crossH && pt.yf!=null){ crossH.style.display='block'; crossH.style.top=(pt.yf*rect.height)+'px'; }   // horisontell linje vid punktens y
     // Visa partnerns EGNA värde i kr vid den tidpunkten (rekonstruerat med insättningssteg) +
     // procent. Exponerar aldrig portföljens totala kr.
     var txt=(sign?'+':'')+pt.p.toFixed(2)+'%';
@@ -426,7 +428,7 @@
   }
   function shareCrossHide(){
     var wrap=document.getElementById('chWrap'); if(!wrap) return;
-    ['.chcross','.chtip','.chtime'].forEach(function(s){ var el=wrap.querySelector(s); if(el) el.style.display='none'; });
+    ['.chcross','.chcross-h','.chtip','.chtime'].forEach(function(s){ var el=wrap.querySelector(s); if(el) el.style.display='none'; });
   }
 
   function load(){
