@@ -325,7 +325,10 @@
         var inflow=((+m.amount_sek||0)>=0), mc=inflow?'#22c55e':'#f59e0b', verb=inflow?'INSÄTTNING':'UTTAG';
         var totLine=(m.total_sek!=null)?'<div class="tp-r">Totalt: '+kr(m.total_sek)+'</div>':'';
         var noteLine=m.note?'<div class="tp-r" style="color:var(--dim);font-size:.68rem">'+esc(m.note)+'</div>':'';
-        var pop='<div class="trade-pop" style="left:50%;transform:translateX(-50%)"><div class="tp-h" style="color:'+mc+'">'+esc(m.partner_id||'')+' · '+verb+'</div>'
+        var _md=new Date((+m.ts||0)*1000), _z=function(n){return(n<10?'0':'')+n;};
+        var dtStr=_md.getFullYear()+'-'+_z(_md.getMonth()+1)+'-'+_z(_md.getDate())+' '+_z(_md.getHours())+':'+_z(_md.getMinutes());
+        var dtLine='<div class="tp-r" style="color:var(--dim);font-size:.68rem">'+dtStr+'</div>';
+        var pop='<div class="trade-pop" style="left:50%;transform:translateX(-50%)"><div class="tp-h" style="color:'+mc+'">'+esc(m.partner_id||'')+' · '+verb+'</div>'+dtLine
           +'<div class="tp-r">'+kr(Math.abs(+m.amount_sek||0))+'</div>'+totLine+noteLine+'</div>';
         return '<div class="trade-mark" style="left:'+mx.toFixed(2)+'%;top:'+my.toFixed(1)+'px">'+pop
           +'<span class="trade-mark-lbl" style="color:'+mc+'">'+esc(m.partner_id||'')+'</span>'
