@@ -213,33 +213,23 @@
   function chPeriodLabel(p){ return {'1h':'senaste timmen',today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
   function shareSetPeriod(p){ window._sharePeriod=p; try{ localStorage.setItem('share_period', p); }catch(e){} shareRenderChart(); }
   function shareToggleSpy(on){ window._shareSpyOn=!!on; try{ localStorage.setItem('share_spy_on', on?'1':'0'); }catch(e){} shareRenderChart(); }
-  // Rekonstruera partnerns kr-värde per punkt utifrån marknadsutvecklingen (flödesjusterade %:en).
-  //  • Har insättningar: FRAMÅT från första insättningen (varje insättning förräntas från sin
-  //    tidpunkt) → första punkten = EXAKT insättningsbeloppet, +beloppet vid varje insättning.
-  //  • Inga insättningar: BAKÅT från eget kapital nu = jämn kurva = kapital × periodens utveckling.
+  // Rekonstruera partnerns kr-värde per punkt: förankrat på NUVARANDE eget kapital (sista punkten)
+  // och BAKÅT via marknadsutvecklingen (flödesjusterade %:en), med STEG vid insättningar/uttag
+  // (beloppet). → nu-värdet stämmer med kortet; +100k vid en insättning gör värdet 100k större.
+  // Ingen insättning = jämn kurva = eget kapital × periodens utveckling.
   function shareReconstructKr(pts, ps, marks, endValue){
     var N=pts.length, krv=new Array(N);
     if(!N) return krv;
-    var mk=(marks||[]).filter(function(m){return m&&m.ts!=null;})
-                      .map(function(m){return {amt:+m.amount_sek||0, ts:+m.ts};})
-                      .sort(function(a,b){return a.ts-b.ts;});
-    if(mk.length){
-      var idxOf=function(ts){ var bi=0,bd=Infinity; for(var i=0;i<N;i++){ var d=Math.abs(pts[i].t-ts); if(d<bd){bd=d;bi=i;} } return bi; };
-      mk.forEach(function(m){ m.fa=1+(ps[idxOf(m.ts)]||0)/100; });
-      for(var i=0;i<N;i++){
-        var fi=1+(ps[i]||0)/100, v=0;
-        for(var k=0;k<mk.length;k++){
-          if(pts[i].t < mk[k].ts) continue;
-          var g=(mk[k].fa>0&&fi>0)?fi/mk[k].fa:1;
-          v += mk[k].amt*g;
-        }
-        krv[i]=v>0?v:0;
-      }
-      return krv;
-    }
     if(!(endValue>0)) endValue=0;
-    var fLast=1+(ps[N-1]||0)/100;
-    for(var j=0;j<N;j++){ var fj=1+(ps[j]||0)/100; krv[j]=(fLast>0)?endValue*fj/fLast:endValue; }
+    krv[N-1]=endValue;
+    for(var i=N-2;i>=0;i--){
+      var fi=1+(ps[i]||0)/100, fj=1+(ps[i+1]||0)/100;
+      var growth=(fi>0&&fj>0)?fj/fi:1;
+      var D=0;
+      for(var k=0;k<marks.length;k++){ var mt=+marks[k].ts; if(mt>pts[i].t && mt<=pts[i+1].t) D+=(+marks[k].amount_sek||0); }
+      var v=(krv[i+1]-D)/(growth||1);
+      krv[i]=v>0?v:0;
+    }
     return krv;
   }
   function shareRenderChart(){
