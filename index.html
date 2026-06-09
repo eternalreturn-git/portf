@@ -213,6 +213,25 @@
   function chPeriodLabel(p){ return {'1h':'senaste timmen',today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
   function shareSetPeriod(p){ window._sharePeriod=p; try{ localStorage.setItem('share_period', p); }catch(e){} shareRenderChart(); }
   function shareToggleSpy(on){ window._shareSpyOn=!!on; try{ localStorage.setItem('share_spy_on', on?'1':'0'); }catch(e){} shareRenderChart(); }
+  // Rekonstruera partnerns kr-värde per punkt: förankrat på NUVARANDE eget kapital (sista punkten)
+  // och bakåt via marknadsutvecklingen (flödesjusterade %:en), med STEG vid insättningar/uttag
+  // (insättningsbeloppet). → precis efter +100k är värdet 100k högre. Ingen insättning = jämn kurva
+  // = eget kapital × periodens utveckling (samma som tidigare formel).
+  function shareReconstructKr(pts, ps, marks, endValue){
+    var N=pts.length, krv=new Array(N);
+    if(!N) return krv;
+    if(!(endValue>0)) endValue=0;
+    krv[N-1]=endValue;
+    for(var i=N-2;i>=0;i--){
+      var fi=1+(ps[i]||0)/100, fj=1+(ps[i+1]||0)/100;
+      var growth=(fi>0&&fj>0)?fj/fi:1;
+      var D=0;
+      for(var k=0;k<marks.length;k++){ var mt=+marks[k].ts; if(mt>pts[i].t && mt<=pts[i+1].t) D+=(+marks[k].amount_sek||0); }
+      var v=(krv[i+1]-D)/(growth||1);
+      krv[i]=v>0?v:0;
+    }
+    return krv;
+  }
   function shareRenderChart(){
     var tog=document.getElementById('chTog'); if(!tog) return;   // ingen graf på denna sida
     var chart=window._shareChart||{}, per=window._sharePeriod||'today';
@@ -245,6 +264,8 @@
     var dayView=(per==='today'||per==='1d'), hourView=(per==='1h'), timeView=dayView||hourView;
     var ps=pts.map(function(o){ return o.p; });
     var cur=ps[ps.length-1];
+    // Partnerns kr-värde per punkt (steg vid insättningar). Förankrat på eget kapital nu.
+    var krSeries=shareReconstructKr(pts, ps, window._shareMarks||[], (+window._shareEquity||0));
     // SPY-överlägg: normaliserad %-serie (0% vid start), spänns över hela bredden (som GUI:t).
     var _spyPts=null;
     if(window._shareSpyOn){
@@ -323,7 +344,10 @@
         var bi=0,bd=Infinity; for(var i=0;i<pts.length;i++){ var dd=Math.abs(pts[i].t-m.ts); if(dd<bd){bd=dd;bi=i;} }
         var mx=(xAt(bi)/W*100), my=(y(ps[bi])/H*170);
         var inflow=((+m.amount_sek||0)>=0), mc=inflow?'#22c55e':'#f59e0b', verb=inflow?'INSÄTTNING':'UTTAG';
-        var totLine=(m.total_sek!=null)?'<div class="tp-r">Totalt: '+kr(m.total_sek)+'</div>':'';
+        // Totalt = härlett värde DIREKT EFTER insättningen (första punkten vid/efter ts).
+        var _pi=bi; for(var j=0;j<pts.length;j++){ if(pts[j].t>=m.ts){ _pi=j; break; } }
+        var _dTot=krSeries[_pi];
+        var totLine=(_dTot!=null)?'<div class="tp-r">Totalt: '+kr(Math.round(_dTot))+'</div>':'';
         var noteLine=m.note?'<div class="tp-r" style="color:var(--dim);font-size:.68rem">'+esc(m.note)+'</div>':'';
         var _md=new Date((+m.ts||0)*1000), _z=function(n){return(n<10?'0':'')+n;};
         var dtStr=_md.getFullYear()+'-'+_z(_md.getMonth()+1)+'-'+_z(_md.getDate())+' '+_z(_md.getHours())+':'+_z(_md.getMinutes());
@@ -348,7 +372,7 @@
     lo.textContent='Lägst '+pLoV.toFixed(2)+'%';
     if(delta){ delta.textContent=(cur>=0?'+':'')+cur.toFixed(2)+'%'; delta.className='chdelta '+(cur>=0?'pos':'neg'); }
     // Hårkors: %-värde + klockslag vid hover/touch (delningssidan har bara %).
-    window._shareHover = pts.map(function(o,i){ return {xf:xAt(i)/W, t:o.t, p:o.p}; });
+    window._shareHover = pts.map(function(o,i){ return {xf:xAt(i)/W, t:o.t, p:o.p, kr:krSeries[i]}; });
     window._shareHoverPeriod = per;
     if(!wrap._crossBound){
       wrap._crossBound=true;
@@ -378,13 +402,10 @@
     var cross=wrap.querySelector('.chcross'), tip=wrap.querySelector('.chtip'), tm=wrap.querySelector('.chtime');
     if(!cross||!tip||!tm) return;
     cross.style.display='block'; cross.style.left=px+'px';
-    // Visa partnerns EGNA värde i kr vid den tidpunkten (eget kapital × periodens
-    // NAV-utveckling) + procent. Exponerar aldrig portföljens totala kr.
+    // Visa partnerns EGNA värde i kr vid den tidpunkten (rekonstruerat med insättningssteg) +
+    // procent. Exponerar aldrig portföljens totala kr.
     var txt=(sign?'+':'')+pt.p.toFixed(2)+'%';
-    var pNow=hp[hp.length-1].p;
-    if(window._shareEquity!=null && (1+pNow/100)!==0){
-      txt = kr(window._shareEquity*(1+pt.p/100)/(1+pNow/100)) + ' · ' + txt;
-    }
+    if(pt.kr!=null){ txt = kr(Math.round(pt.kr)) + ' · ' + txt; }
     tip.style.display='block'; tip.textContent=txt;
     tip.style.color=sign?'var(--pos)':'var(--neg)';
     tip.style.left=Math.max(64, Math.min(rect.width-64, px))+'px';
