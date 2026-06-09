@@ -414,8 +414,8 @@
     var pt=hp[best], px=pt.xf*rect.width, sign=pt.p>=0;
     var cross=wrap.querySelector('.chcross'), crossH=wrap.querySelector('.chcross-h'), tip=wrap.querySelector('.chtip'), tm=wrap.querySelector('.chtime');
     if(!cross||!tip||!tm) return;
-    cross.style.display='block'; cross.style.left=px+'px';
-    if(crossH && pt.yf!=null){ crossH.style.display='block'; crossH.style.top=(pt.yf*rect.height)+'px'; }   // horisontell linje vid punktens y
+    cross.style.display='block'; cross.style.left=Math.round(px)+'px';   // heltals-pixel -> skarp 1px (ingen sub-pixel-suddighet)
+    if(crossH && pt.yf!=null){ crossH.style.display='block'; crossH.style.top=Math.round(pt.yf*rect.height)+'px'; }   // horisontell linje vid punktens y
     // Visa partnerns EGNA värde i kr vid den tidpunkten (rekonstruerat med insättningssteg) +
     // procent. Exponerar aldrig portföljens totala kr.
     var txt=(sign?'+':'')+pt.p.toFixed(2)+'%';
