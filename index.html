@@ -316,12 +316,24 @@
     }
     function y(p){ return padY+(1-(p-loV)/(hiV-loV))*(H-2*padY); }
     var lineD=ps.map(function(p,i){ return (i?'L':'M')+xAt(i).toFixed(1)+','+y(p).toFixed(1); }).join(' ');
-    // SPY-linje (grå, ren linje): SPY:s egen sträcka spänns över hela bredden (0% vänster → höger).
+    // SPY-linje (grå). TIDS-VYER (Idag/1D/1h): mappa SPY på SAMMA X-axel (t0..t1) som portföljen —
+    // annars blir Idag och 1D identiska (samma SPY-serie, samma index-utsträckning) trots olika
+    // tidsfönster. Övriga vyer: jämn index-fördelning (inga lucksträck över helg/natt).
     var spyLine='';
     if(_spyPts && _spyPts.length>=2){
-      var _sn=_spyPts.length;   // JÄMN fördelning (index) → inga lucksträck över helg/natt
-      spyLine='<path d="'+_spyPts.map(function(s,i){ return (i?'L':'M')+(_sn===1?0:(i/(_sn-1))*W).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
-        +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
+      if(timeView){
+        var _spS=Math.max(1,t1-t0);
+        var segS=_spyPts.filter(function(s){ return s.t>=t0 && s.t<=t1; });
+        if(segS.length>=2){
+          spyLine='<path d="'+segS.map(function(s,i){ return (i?'L':'M')+(((s.t-t0)/_spS)*W).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
+            +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
+        }
+      }
+      if(!spyLine){
+        var _sn=_spyPts.length;
+        spyLine='<path d="'+_spyPts.map(function(s,i){ return (i?'L':'M')+(_sn===1?0:(i/(_sn-1))*W).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
+          +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
+      }
     }
     // SPY-värdet vid switchen (inte i grafen → ingen krock).
     (function(){ var sv=document.getElementById('spyVal'); if(!sv) return;
