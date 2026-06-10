@@ -145,6 +145,7 @@
     window._shareChart = d.chart || {};
     window._shareMarks = d.marks || [];    // BARA den här partnerns insättnings-/uttagsmarkörer
     window._shareSpy = d.spy || {};        // SPY-överlägg (per period, normaliserad %)
+    window._shareTodayKpi = (typeof d.today_kpi_pct==='number') ? d.today_kpi_pct : null;  // Idag/1D = GUI:ts positions-KPI
     if(window._shareSpyOn===undefined){ try{ window._shareSpyOn = localStorage.getItem('share_spy_on')==='1'; }catch(e){ window._shareSpyOn=false; } }
     window._shareEquity = (typeof d.equity_sek==='number') ? d.equity_sek : null;
     if(!window._sharePeriod){ var _sp=null; try{ _sp=localStorage.getItem('share_period'); }catch(e){}
@@ -265,6 +266,13 @@
     var dayView=(per==='today'||per==='1d'), hourView=(per==='1h'), timeView=dayView||hourView;
     var ps=pts.map(function(o){ return o.p; });
     var cur=ps[ps.length-1];
+    // IDAG/1D: FÖRANKRA kurvans slutpunkt vid positions-KPI:n (window._shareTodayKpi, = GUI:ts
+    // "Utveckling idag") → hårkorset vid sista punkten visar SAMMA siffra som chDelta-rubriken,
+    // även vid value_log-brus. Konstant skift (intradagens relativa rörelser bevaras). Speglar GUI:t.
+    if(dayView && typeof window._shareTodayKpi==='number' && isFinite(window._shareTodayKpi)){
+      var _sh = window._shareTodayKpi - cur;
+      if(Math.abs(_sh) > 1e-9){ for(var _i=0;_i<ps.length;_i++){ ps[_i]+=_sh; pts[_i]={t:pts[_i].t, p:ps[_i]}; } cur=ps[ps.length-1]; }
+    }
     // Partnerns kr-värde per punkt (steg vid insättningar). Förankrat på eget kapital nu.
     var krSeries=shareReconstructKr(pts, ps, window._shareMarks||[], (+window._shareEquity||0));
     // SPY-överlägg: FÖNSTRA serien till vyns/portföljens datafönster och RE-BASERA på första
@@ -439,7 +447,10 @@
       +'</svg><div class="chcross"></div><div class="chcross-h"></div><div class="chtip"></div><div class="chtime"></div>'+glabels+flowMarks;
     hi.textContent='Högst '+pHiV.toFixed(2)+'%';
     lo.textContent='Lägst '+pLoV.toFixed(2)+'%';
-    if(delta){ delta.textContent=(cur>=0?'+':'')+cur.toFixed(2)+'%'; delta.className='chdelta '+(cur>=0?'pos':'neg'); }
+    // IDAG/1D: visa GUI:ts positions-KPI (samma portfölj → samma siffra), ej den brusiga value_log-
+    // kurvans slutvärde. Övriga vyer: kurvans %. (KPI saknas → fall tillbaka på kurvan.)
+    var _dpct = ((per==='today'||per==='1d') && typeof window._shareTodayKpi==='number') ? window._shareTodayKpi : cur;
+    if(delta){ delta.textContent=(_dpct>=0?'+':'')+_dpct.toFixed(2)+'%'; delta.className='chdelta '+(_dpct>=0?'pos':'neg'); }
     // Hårkors: %-värde + klockslag vid hover/touch (delningssidan har bara %).
     window._shareHover = pts.map(function(o,i){ return {xf:xAt(i)/W, yf:y(o.p)/H, t:o.t, p:o.p, kr:krSeries[i]}; });
     window._shareHoverPeriod = per;
