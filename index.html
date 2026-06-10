@@ -335,7 +335,25 @@
     function _xAtTimeS(ts){ var N=pts.length; if(N<2) return 0; if(ts<=pts[0].t) return 0; if(ts>=pts[N-1].t) return W;
       var a=0,b=N-1; while(b-a>1){ var m=(a+b)>>1; if(pts[m].t<=ts) a=m; else b=m; }
       var sp=(pts[b].t-pts[a].t)||1; return ((a+(ts-pts[a].t)/sp)/(N-1))*W; }
-    var lineD=ps.map(function(p,i){ return (i?'L':'M')+xAt(i).toFixed(1)+','+y(p).toFixed(1); }).join(' ');
+    // MJUK LINJE (speglar GUI:t): monoton kubisk interpolation — kurvan går exakt genom varje
+    // datapunkt (ingen översläng på spikar), men sågtands-hörn i täta brusband rundas av.
+    function _smoothDS(X,Y){
+      var n=X.length;
+      if(n<3){ var dd=''; for(var i0=0;i0<n;i0++){ dd+=(i0?'L':'M')+X[i0].toFixed(1)+','+Y[i0].toFixed(1)+(i0<n-1?' ':''); } return dd; }
+      var dx=[], sl=[], mm=[];
+      for(var i1=0;i1<n-1;i1++){ dx.push((X[i1+1]-X[i1])||1e-6); sl.push((Y[i1+1]-Y[i1])/dx[i1]); }
+      mm[0]=sl[0]; mm[n-1]=sl[n-2];
+      for(var i2=1;i2<n-1;i2++) mm[i2]=(sl[i2-1]*sl[i2]<=0)?0:(2*sl[i2-1]*sl[i2])/(sl[i2-1]+sl[i2]);
+      var d='M'+X[0].toFixed(1)+','+Y[0].toFixed(1);
+      for(var i3=0;i3<n-1;i3++){
+        var h=dx[i3]/3;
+        d+='C'+(X[i3]+h).toFixed(1)+','+(Y[i3]+mm[i3]*h).toFixed(1)+' '+(X[i3+1]-h).toFixed(1)+','+(Y[i3+1]-mm[i3+1]*h).toFixed(1)+' '+X[i3+1].toFixed(1)+','+Y[i3+1].toFixed(1);
+      }
+      return d;
+    }
+    var _LXs=[], _LYs=[];
+    for(var _li=0;_li<ps.length;_li++){ _LXs.push(xAt(_li)); _LYs.push(y(ps[_li])); }
+    var lineD=_smoothDS(_LXs,_LYs);
     // SPY-linje (grå). TIDS-VYER (Idag/1D/1h): mappa SPY på SAMMA X-axel (t0..t1) som portföljen —
     // annars blir Idag och 1D identiska (samma SPY-serie, samma index-utsträckning) trots olika
     // tidsfönster. Övriga vyer: jämn index-fördelning (inga lucksträck över helg/natt).
@@ -383,7 +401,7 @@
     var colHex=cur>=0?'#22c55e':'#ef4444';
     var x0=xAt(0).toFixed(1), xN=xAt(pts.length-1).toFixed(1);
     // Yta UNDER linjen med lodrät gradient: mättad närmast linjen, transparent nederst.
-    var areaD='M'+x0+','+H+' '+ps.map(function(p,i){ return 'L'+xAt(i).toFixed(1)+','+y(p).toFixed(1); }).join(' ')+' L'+xN+','+H+' Z';
+    var areaD='M'+x0+','+H+' '+lineD.replace(/^M/,'L')+' L'+xN+','+H+' Z';   // följer samma mjuka kurva som linjen
     var mktsvg=marketLines.map(function(mx){ return '<line x1="'+mx.toFixed(1)+'" y1="0" x2="'+mx.toFixed(1)+'" y2="'+H+'" stroke="rgba(124,130,144,.6)" stroke-width="1" stroke-dasharray="4 5" vector-effect="non-scaling-stroke"/>'; }).join('');
     var glabels=guides.map(function(g){ return '<div style="position:absolute;bottom:1px;left:'+(g.x/W*100).toFixed(2)+'%;transform:translateX(-50%);font-size:.6rem;color:rgba(124,130,144,.9);font-family:var(--mono);pointer-events:none;background:rgba(4,4,5,.6);padding:0 3px;border-radius:3px;line-height:1.4">'+g.label+'</div>'; }).join('');
     // INSÄTTNINGS-/UTTAGSMARKÖRER (bara denna partners). Placeras på närmaste %-punkt via ts.
@@ -417,7 +435,7 @@
       +mktsvg
       +'<path d="'+areaD+'" fill="url(#chartGrad)"/>'
       +spyLine
-      +'<path d="'+lineD+'" fill="none" stroke="'+col+'" stroke-width="1" vector-effect="non-scaling-stroke"/>'
+      +'<path d="'+lineD+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>'
       +'</svg><div class="chcross"></div><div class="chcross-h"></div><div class="chtip"></div><div class="chtime"></div>'+glabels+flowMarks;
     hi.textContent='Högst '+pHiV.toFixed(2)+'%';
     lo.textContent='Lägst '+pLoV.toFixed(2)+'%';
