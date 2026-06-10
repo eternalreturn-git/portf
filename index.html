@@ -267,12 +267,26 @@
     var cur=ps[ps.length-1];
     // Partnerns kr-värde per punkt (steg vid insättningar). Förankrat på eget kapital nu.
     var krSeries=shareReconstructKr(pts, ps, window._shareMarks||[], (+window._shareEquity||0));
-    // SPY-överlägg: normaliserad %-serie (0% vid start), spänns över hela bredden (som GUI:t).
+    // SPY-överlägg: FÖNSTRA serien till vyns/portföljens datafönster och RE-BASERA på första
+    // punkten vid/efter portföljens första punkt — samma 0%-ankare som GUI:t, robust mot logg-
+    // luckor (annars förskjuts baslinjen av SPY-rörelse före portföljens datastart). Speglar
+    // static/app.js renderChart: 1D-fönstret börjar vid midnatt, övriga vid portföljens start.
     var _spyPts=null;
     if(window._shareSpyOn){
       var spyKey=(per==='1d')?'today':per;
       var ssrc=(window._shareSpy||{})[spyKey]||[];
-      if(ssrc.length>=2){ var b0=ssrc[0].p; _spyPts=ssrc.map(function(o){ return {t:o.t, p:o.p-b0}; }); }
+      if(ssrc.length>=2){
+        var _swNow=Math.floor(Date.now()/1000);
+        var _sw0=pts[0].t;
+        if(per==='1d'){ var _dd0=new Date(); _dd0.setHours(0,0,0,0); var _mt=Math.floor(_dd0.getTime()/1000); if(_mt>_swNow) _mt-=86400; _sw0=Math.min(_sw0,_mt); }
+        var _sw1=(timeView?Math.max(pts[pts.length-1].t,_swNow):pts[pts.length-1].t)+3600;
+        var winS=ssrc.filter(function(o){ return o.t>=_sw0 && o.t<=_sw1; });
+        if(winS.length>=2){
+          var _bI=0; for(var _bj=0;_bj<winS.length;_bj++){ if(winS[_bj].t>=pts[0].t){ _bI=_bj; break; } }
+          var b0=winS[_bI].p;
+          _spyPts=winS.map(function(o){ return {t:o.t, p:o.p-b0}; });
+        }
+      }
     }
     // PORTFÖLJENS egna extremer (för Högst/Lägst). Y-skalan vidgas av SPY men etiketterna visar portföljen.
     var pHiV=Math.max.apply(null,ps.concat(0)), pLoV=Math.min.apply(null,ps.concat(0));
@@ -328,22 +342,25 @@
     var spyLine='', _spyShownP=null;
     if(_spyPts && _spyPts.length>=2){
       if(timeView){
-        if(hourView){
-          // 1h: TIDS-EXAKT — bara där SPX faktiskt handlades; tomt fönster → ingen linje.
-          var _spS=Math.max(1,t1-t0);
-          var segS=_spyPts.filter(function(s){ return s.t>=t0 && s.t<=t1; });
-          if(segS.length>=2){
-            _spyShownP=segS[segS.length-1].p;
-            spyLine='<path d="'+segS.map(function(s,i){ return (i?'L':'M')+(((s.t-t0)/_spS)*W).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
-              +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
+        // TIDS-EXAKT — rita bara där SPX faktiskt handlades, KLIPPT till vyns start/slut [t0,t1].
+        // Delas i sessions-segment vid luckor >45 min (ingen "brygga" över stängda timmar).
+        var _spS=Math.max(1,t1-t0);
+        var segS=_spyPts.filter(function(s){ return s.t>=t0 && s.t<=t1; });
+        if(segS.length>=2){
+          var dStr='', rs=0, lastP=null;
+          for(var si=1; si<=segS.length; si++){
+            if(si===segS.length || segS[si].t-segS[si-1].t>2700){
+              if(si-rs>=2){
+                dStr += segS.slice(rs,si).map(function(s,j){ return (j?'L':'M')+(((s.t-t0)/_spS)*W).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')+' ';
+                lastP=segS[si-1];
+              }
+              rs=si;
+            }
           }
-        } else {
-          // IDAG/1D: senaste SPX-sessionen som streckad BENCHMARK, ALLTID utsträckt över portföljens
-          // spann (gårdagens session på morgonen; rullar in i dagens). Växlar ej till en pytteliten stubbe.
-          var _xL2=xAt(0), _xR2=xAt(pts.length-1), _fn2=_spyPts.length;
-          _spyShownP=_spyPts[_fn2-1].p;
-          spyLine='<path d="'+_spyPts.map(function(s,i){ return (i?'L':'M')+(_xL2+(_fn2===1?0:(i/(_fn2-1))*(_xR2-_xL2))).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
-            +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.85" stroke-dasharray="5 4"/>';
+          if(dStr){
+            _spyShownP=lastP.p;   // spegla det som FAKTISKT ritas (sista utritade punkten)
+            spyLine='<path d="'+dStr.replace(/\s+$/,'')+'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
+          }
         }
       } else {
         // ÖVRIGA vyer (7D/1M/…): mappa SPY på TID via portföljens tidslinje + klipp till portföljens
@@ -400,7 +417,7 @@
       +mktsvg
       +'<path d="'+areaD+'" fill="url(#chartGrad)"/>'
       +spyLine
-      +'<path d="'+lineD+'" fill="none" stroke="'+col+'" stroke-width="2" vector-effect="non-scaling-stroke"/>'
+      +'<path d="'+lineD+'" fill="none" stroke="'+col+'" stroke-width="1" vector-effect="non-scaling-stroke"/>'
       +'</svg><div class="chcross"></div><div class="chcross-h"></div><div class="chtip"></div><div class="chtime"></div>'+glabels+flowMarks;
     hi.textContent='Högst '+pHiV.toFixed(2)+'%';
     lo.textContent='Lägst '+pLoV.toFixed(2)+'%';
