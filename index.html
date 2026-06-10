@@ -316,29 +316,50 @@
             guides.push({x:gx, label:glbl}); lastX=gx; } } }
     }
     function y(p){ return padY+(1-(p-loV)/(hiV-loV))*(H-2*padY); }
+    // Tidsstämpel -> x via portföljens egen punkt-tidslinje (för SPY på index-vyerna 7D/1M/… så SPY
+    // hamnar rätt relativt portföljen även när spannen skiljer sig). Binärsök + interpolation.
+    function _xAtTimeS(ts){ var N=pts.length; if(N<2) return 0; if(ts<=pts[0].t) return 0; if(ts>=pts[N-1].t) return W;
+      var a=0,b=N-1; while(b-a>1){ var m=(a+b)>>1; if(pts[m].t<=ts) a=m; else b=m; }
+      var sp=(pts[b].t-pts[a].t)||1; return ((a+(ts-pts[a].t)/sp)/(N-1))*W; }
     var lineD=ps.map(function(p,i){ return (i?'L':'M')+xAt(i).toFixed(1)+','+y(p).toFixed(1); }).join(' ');
     // SPY-linje (grå). TIDS-VYER (Idag/1D/1h): mappa SPY på SAMMA X-axel (t0..t1) som portföljen —
     // annars blir Idag och 1D identiska (samma SPY-serie, samma index-utsträckning) trots olika
     // tidsfönster. Övriga vyer: jämn index-fördelning (inga lucksträck över helg/natt).
-    var spyLine='';
+    var spyLine='', _spyShownP=null;
     if(_spyPts && _spyPts.length>=2){
       if(timeView){
-        var _spS=Math.max(1,t1-t0);
-        var segS=_spyPts.filter(function(s){ return s.t>=t0 && s.t<=t1; });
-        if(segS.length>=2){
-          spyLine='<path d="'+segS.map(function(s,i){ return (i?'L':'M')+(((s.t-t0)/_spS)*W).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
+        if(hourView){
+          // 1h: TIDS-EXAKT — bara där SPX faktiskt handlades; tomt fönster → ingen linje.
+          var _spS=Math.max(1,t1-t0);
+          var segS=_spyPts.filter(function(s){ return s.t>=t0 && s.t<=t1; });
+          if(segS.length>=2){
+            _spyShownP=segS[segS.length-1].p;
+            spyLine='<path d="'+segS.map(function(s,i){ return (i?'L':'M')+(((s.t-t0)/_spS)*W).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
+              +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
+          }
+        } else {
+          // IDAG/1D: senaste SPX-sessionen som streckad BENCHMARK, ALLTID utsträckt över portföljens
+          // spann (gårdagens session på morgonen; rullar in i dagens). Växlar ej till en pytteliten stubbe.
+          var _xL2=xAt(0), _xR2=xAt(pts.length-1), _fn2=_spyPts.length;
+          _spyShownP=_spyPts[_fn2-1].p;
+          spyLine='<path d="'+_spyPts.map(function(s,i){ return (i?'L':'M')+(_xL2+(_fn2===1?0:(i/(_fn2-1))*(_xR2-_xL2))).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
+            +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.85" stroke-dasharray="5 4"/>';
+        }
+      } else {
+        // ÖVRIGA vyer (7D/1M/…): mappa SPY på TID via portföljens tidslinje + klipp till portföljens
+        // spann, annars komprimeras en längre SPY-serie över hela bredden och hamnar i otakt med datumen.
+        var _t0p=pts[0].t, _t1p=pts[pts.length-1].t;
+        var segO=_spyPts.filter(function(s){ return s.t>=_t0p && s.t<=_t1p; });
+        if(segO.length>=2){
+          _spyShownP=segO[segO.length-1].p;
+          spyLine='<path d="'+segO.map(function(s,i){ return (i?'L':'M')+_xAtTimeS(s.t).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
             +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
         }
-      }
-      if(!spyLine){
-        var _sn=_spyPts.length;
-        spyLine='<path d="'+_spyPts.map(function(s,i){ return (i?'L':'M')+(_sn===1?0:(i/(_sn-1))*W).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
-          +'" fill="none" stroke="#9aa3b2" stroke-width="1.4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
       }
     }
     // SPY-värdet vid switchen (inte i grafen → ingen krock).
     (function(){ var sv=document.getElementById('spyVal'); if(!sv) return;
-      if(window._shareSpyOn && _spyPts && _spyPts.length){ var sp=_spyPts[_spyPts.length-1].p;
+      if(window._shareSpyOn && _spyShownP!=null){ var sp=_spyShownP;   // spegla det som FAKTISKT ritas (tomt vid stängd marknad)
         sv.textContent=(sp>=0?'+':'')+sp.toFixed(2)+'%'; sv.style.color=sp>=0?'var(--pos)':'var(--neg)'; }
       else { sv.textContent=''; } })();
     var zeroY=y(0).toFixed(1), col=cur>=0?'var(--pos)':'var(--neg)';
