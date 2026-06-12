@@ -133,7 +133,6 @@
   var REPO = OWNER + '/' + NAME;
   function ctlGetPat(){ try{ return localStorage.getItem('ctl_pat')||''; }catch(e){ return ''; } }
   function ctlSavePat(){ var el=document.getElementById('ctlPat'); var v=(el&&el.value||'').trim(); if(!v) return; try{ localStorage.setItem('ctl_pat',v); }catch(e){} load(); }
-  function ctlClearPat(){ try{ localStorage.removeItem('ctl_pat'); }catch(e){} load(); }   // byt/rätta felaktig token
   function ctlHeaders(){ return {Authorization:'token '+ctlGetPat(), Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}; }
   async function ctlHmac(msg){ var k=await crypto.subtle.importKey('raw', new TextEncoder().encode(SEC), {name:'HMAC',hash:'SHA-256'}, false, ['sign']); var s=await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg)); var b=new Uint8Array(s),h=''; for(var i=0;i<b.length;i++) h+=('0'+b[i].toString(16)).slice(-2); return h; }
   function ctlRid(){ var u=new Uint8Array(12); crypto.getRandomValues(u); var h=''; for(var i=0;i<u.length;i++) h+=('0'+u[i].toString(16)).slice(-2); return h; }
@@ -170,24 +169,6 @@
     try{ var id=await ctlSend({action:'close_position', conId:conId}); ctlWaitAck(id, el); setTimeout(load, 22000); }
     catch(e){ if(el) el.innerHTML='<span class="neg">'+esc(String(e))+'</span>'; }
   }
-  function scratchCopy(){
-    var el=document.getElementById('scratchBox'); if(!el) return;
-    var done=function(){ var b=document.getElementById('scratchCopyBtn'); if(b){ var o=b.textContent; b.textContent='Kopierat'; setTimeout(function(){ b.textContent=o; },1200); } };
-    try{ navigator.clipboard.writeText(el.value).then(done, function(){ el.select(); document.execCommand('copy'); done(); }); }
-    catch(e){ el.select(); try{ document.execCommand('copy'); done(); }catch(_){} }
-  }
-  function scratchHtml(d){
-    if(!d.is_owner) return '';            // bara ägarens vy
-    var sv=''; try{ sv=localStorage.getItem('share_scratch')||''; }catch(e){}
-    return '<div class="sec">Anteckning</div>'
-      + '<div class="tbl" style="padding:10px">'
-      + '<textarea id="scratchBox" oninput="try{localStorage.setItem(\'share_scratch\',this.value)}catch(e){}" '
-      + 'placeholder="Klistra in / skriv en sträng här…" '
-      + 'style="width:100%;box-sizing:border-box;min-height:90px;resize:vertical;background:#0e1216;border:1px solid var(--bd,#232a31);color:inherit;border-radius:8px;padding:9px;font-family:var(--font-mono,monospace);font-size:.85em">'+esc(sv)+'</textarea>'
-      + '<div style="height:6px"></div>'
-      + '<button id="scratchCopyBtn" onclick="scratchCopy()" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--bd,#232a31);background:#1b2229;color:inherit">Kopiera</button></div>';
-  }
-
   function ctlCardHtml(d){
     if(!(d.is_owner && SEC)) return '';        // bara ägaren, bara med control-länk
     if(!ctlGetPat()){
@@ -213,7 +194,6 @@
       h += '<div style="color:var(--dim);font-size:.82em;margin-top:6px">Inga pågående trades just nu.</div>';
     }
     h += '<div id="ctlSellSt" style="font-size:.8em;margin-top:6px;min-height:16px"></div>';
-    h += '<div style="margin-top:8px;text-align:right"><a href="#" onclick="ctlClearPat();return false" style="color:var(--dim);font-size:.78em;text-decoration:underline">Byt token</a></div>';
     h += '</div>';
     return h;
   }
@@ -282,7 +262,6 @@
     }
 
     c += ctlCardHtml(d);        // FJÄRRSTYRNING (paus + sälj) — bara ägaren med control-länk
-    c += scratchHtml(d);        // Anteckning/kopiera-ruta — bara ägaren (sparas lokalt på enheten)
 
     if(stocks.length){
       c += '<div class="sec">Aktier ('+stocks.length+')</div>';
