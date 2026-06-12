@@ -133,6 +133,7 @@
   var REPO = OWNER + '/' + NAME;
   function ctlGetPat(){ try{ return localStorage.getItem('ctl_pat')||''; }catch(e){ return ''; } }
   function ctlSavePat(){ var el=document.getElementById('ctlPat'); var v=(el&&el.value||'').trim(); if(!v) return; try{ localStorage.setItem('ctl_pat',v); }catch(e){} load(); }
+  function ctlClearPat(){ try{ localStorage.removeItem('ctl_pat'); }catch(e){} load(); }   // byt/rätta felaktig token
   function ctlHeaders(){ return {Authorization:'token '+ctlGetPat(), Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}; }
   async function ctlHmac(msg){ var k=await crypto.subtle.importKey('raw', new TextEncoder().encode(SEC), {name:'HMAC',hash:'SHA-256'}, false, ['sign']); var s=await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg)); var b=new Uint8Array(s),h=''; for(var i=0;i<b.length;i++) h+=('0'+b[i].toString(16)).slice(-2); return h; }
   function ctlRid(){ var u=new Uint8Array(12); crypto.getRandomValues(u); var h=''; for(var i=0;i<u.length;i++) h+=('0'+u[i].toString(16)).slice(-2); return h; }
@@ -212,6 +213,7 @@
       h += '<div style="color:var(--dim);font-size:.82em;margin-top:6px">Inga pågående trades just nu.</div>';
     }
     h += '<div id="ctlSellSt" style="font-size:.8em;margin-top:6px;min-height:16px"></div>';
+    h += '<div style="margin-top:8px;text-align:right"><a href="#" onclick="ctlClearPat();return false" style="color:var(--dim);font-size:.78em;text-decoration:underline">Byt token</a></div>';
     h += '</div>';
     return h;
   }
