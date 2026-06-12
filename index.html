@@ -169,6 +169,26 @@
     var stocks = all.filter(function(h){return h.type==='Stock';}).sort(byVal);
     var opts   = all.filter(function(h){return h.type!=='Stock';}).sort(byVal);
 
+    // DAGENS HANDEL (bara ägaren) — vad som auto-/manuellt handlats idag, senast först. Överst så
+    // man från mobilen direkt ser om boten köpt något medan man varit borta.
+    if(Array.isArray(d.today_trades) && d.today_trades.length){
+      c += '<div class="sec">Dagens handel ('+d.today_trades.length+')</div>';
+      c += '<div class="tbl"><table><thead><tr><th>Tid</th><th>Sida</th><th>Ticker</th><th>Antal</th><th>Pris</th></tr></thead><tbody>';
+      d.today_trades.forEach(function(t){
+        var dt=new Date((t.t||0)*1000), z=function(n){return(n<10?'0':'')+n;};
+        var side=t.side==='BUY'?'KÖP':(t.side==='SELL'?'SÄLJ':(t.side||''));
+        var sc=t.side==='BUY'?'pos':(t.side==='SELL'?'neg':'');
+        c += '<tr><td>'+z(dt.getHours())+':'+z(dt.getMinutes())+'</td>'
+           + '<td class="'+sc+'">'+side+(t.boost?'<span class="ty">BOOST</span>':'')+'</td>'
+           + '<td><span class="tk">'+esc(t.ticker)+'</span></td>'
+           + '<td>'+(t.qty!=null?t.qty:'')+'</td>'
+           + '<td>'+(t.price!=null?('$'+Number(t.price).toFixed(2)):'—')+'</td></tr>';
+      });
+      c += '</tbody></table></div>';
+    } else if(d.is_owner){
+      c += '<div class="sec">Dagens handel</div><div style="padding:6px 4px;color:var(--dim);font-size:.85em">Inga trades idag.</div>';
+    }
+
     if(stocks.length){
       c += '<div class="sec">Aktier ('+stocks.length+')</div>';
       c += '<div class="tbl"><table><thead><tr><th>Aktie</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
