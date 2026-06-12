@@ -126,6 +126,78 @@
   function plkr(v){ return (v==null)?'—':((v>=0?'+':'−')+Math.round(Math.abs(v)).toLocaleString('sv-SE')); }
   function fmtDate(s){ s=String(s||''); return s.length===8 ? s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8) : '—'; }
 
+  // === FJÄRRSTYRNING (bara ägaren, bara när länken bär control-secret 's') ===========
+  var SEC = new URLSearchParams(location.hash.slice(1)).get('s') || '';   // signeringsnyckel, ej till servern
+  var OWNER = location.hostname.split('.')[0];
+  var NAME = (location.pathname.split('/').filter(Boolean)[0]) || '';
+  var REPO = OWNER + '/' + NAME;
+  function ctlGetPat(){ try{ return localStorage.getItem('ctl_pat')||''; }catch(e){ return ''; } }
+  function ctlSavePat(){ var el=document.getElementById('ctlPat'); var v=(el&&el.value||'').trim(); if(!v) return; try{ localStorage.setItem('ctl_pat',v); }catch(e){} load(); }
+  function ctlHeaders(){ return {Authorization:'token '+ctlGetPat(), Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}; }
+  async function ctlHmac(msg){ var k=await crypto.subtle.importKey('raw', new TextEncoder().encode(SEC), {name:'HMAC',hash:'SHA-256'}, false, ['sign']); var s=await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg)); var b=new Uint8Array(s),h=''; for(var i=0;i<b.length;i++) h+=('0'+b[i].toString(16)).slice(-2); return h; }
+  function ctlRid(){ var u=new Uint8Array(12); crypto.getRandomValues(u); var h=''; for(var i=0;i<u.length;i++) h+=('0'+u[i].toString(16)).slice(-2); return h; }
+  async function ctlSend(cmd){
+    cmd.id=ctlRid(); cmd.ts=Date.now();
+    cmd.sig=await ctlHmac([cmd.id, cmd.action, (cmd.conId!=null?cmd.conId:''), cmd.ts].join('|'));
+    var api='https://api.github.com/repos/'+REPO+'/contents/cmd/commands.json', sha=null, cmds=[];
+    var g=await fetch(api+'?cb='+Date.now(),{headers:ctlHeaders(),cache:'no-store'});
+    if(g.status===200){ var j=await g.json(); sha=j.sha; try{ var dec=JSON.parse(decodeURIComponent(escape(atob((j.content||'').replace(/\n/g,''))))); cmds=dec.cmds||[]; }catch(e){} }
+    cmds.push(cmd); cmds=cmds.slice(-10);
+    var put={message:'cmd '+cmd.action, content:btoa(unescape(encodeURIComponent(JSON.stringify({cmds:cmds}))))};
+    if(sha) put.sha=sha;
+    var p=await fetch(api,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ctlHeaders()),body:JSON.stringify(put)});
+    if(!(p.status===200||p.status===201)){ var et=await p.text(); throw new Error('skrivfel '+p.status+' '+et.slice(0,80)); }
+    return cmd.id;
+  }
+  async function ctlWaitAck(id, el){
+    for(var i=0;i<12;i++){ await new Promise(function(r){setTimeout(r,3000);});
+      try{ var g=await fetch('https://api.github.com/repos/'+REPO+'/contents/cmd/ack.json?cb='+Date.now(),{headers:ctlHeaders(),cache:'no-store'});
+        if(g.status===200){ var j=await g.json(); var dec=JSON.parse(decodeURIComponent(escape(atob((j.content||'').replace(/\n/g,''))))); var a=(dec.acks||[]).filter(function(x){return x.id===id;})[0];
+          if(a && el){ el.innerHTML='<span class="'+(a.ok?'pos':'neg')+'">'+(a.ok?'OK: ':'Avvisat: ')+esc(a.msg||'')+'</span>'; return; } }
+      }catch(e){}
+    }
+    if(el) el.innerHTML='<span style="color:var(--dim)">Skickat — servern pollar var 20:e sek…</span>';
+  }
+  async function ctlPause(paused){
+    var el=document.getElementById('ctlPauseSt'); if(el) el.innerHTML='<span style="color:var(--dim)">Skickar…</span>';
+    try{ var id=await ctlSend({action: paused?'resume_entries':'pause_entries'}); ctlWaitAck(id, el); setTimeout(load, 22000); }
+    catch(e){ if(el) el.innerHTML='<span class="neg">'+esc(String(e))+'</span>'; }
+  }
+  async function ctlSell(conId, tk){
+    if(!confirm('Sälj pågående trade '+tk+'?')) return;
+    var el=document.getElementById('ctlSellSt'); if(el) el.innerHTML='<span style="color:var(--dim)">Skickar sälj '+esc(tk)+'…</span>';
+    try{ var id=await ctlSend({action:'close_position', conId:conId}); ctlWaitAck(id, el); setTimeout(load, 22000); }
+    catch(e){ if(el) el.innerHTML='<span class="neg">'+esc(String(e))+'</span>'; }
+  }
+  function ctlCardHtml(d){
+    if(!(d.is_owner && SEC)) return '';        // bara ägaren, bara med control-länk
+    if(!ctlGetPat()){
+      return '<div class="sec">Styrning</div><div class="tbl" style="padding:10px">'
+        + '<div style="color:var(--dim);font-size:.82em;margin-bottom:6px">Klistra in din GitHub-token en gång (sparas bara här på enheten):</div>'
+        + '<input id="ctlPat" type="password" placeholder="github_pat_..." autocomplete="off" style="width:100%;box-sizing:border-box;background:#0e1216;border:1px solid var(--bd,#232a31);color:inherit;border-radius:8px;padding:9px">'
+        + '<div style="height:6px"></div><button onclick="ctlSavePat()" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--bd,#232a31);background:#1b2229;color:inherit">Spara token</button></div>';
+    }
+    var paused = !!d.entries_paused;
+    var h = '<div class="sec">Styrning '+(paused?'<span style="color:#e0b341">· KÖP PAUSADE</span>':'')+'</div>';
+    h += '<div class="tbl" style="padding:10px">';
+    h += '<button onclick="ctlPause('+(paused?'true':'false')+')" style="width:100%;padding:11px;border-radius:8px;border:1px solid '+(paused?'#1d5a2e':'#5a431d')+';background:'+(paused?'#123a1c':'#3a2a12')+';color:'+(paused?'var(--pos)':'#e0b341')+'">'+(paused?'Återuppta nya köp':'Pausa nya köp')+'</button>';
+    h += '<div id="ctlPauseSt" style="font-size:.8em;margin-top:6px;min-height:16px"></div>';
+    var cs = d.closable||[];
+    if(cs.length){
+      h += '<div style="color:var(--dim);font-size:.78em;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.06em">Pågående trades</div>';
+      cs.forEach(function(x){
+        h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--bd,#232a31)">'
+          + '<div><span class="tk">'+esc(x.ticker||'?')+'</span> <span style="color:var(--dim);font-size:.8em">'+(x.qty||0)+' st'+(x.sim?' · sim':'')+'</span></div>'
+          + '<button onclick="ctlSell('+x.conId+',\''+esc(x.ticker||'')+'\')" style="flex:0 0 86px;padding:8px;border-radius:8px;border:1px solid #5a1d2e;background:#3a1620;color:var(--neg)">Sälj</button></div>';
+      });
+    } else {
+      h += '<div style="color:var(--dim);font-size:.82em;margin-top:6px">Inga pågående trades just nu.</div>';
+    }
+    h += '<div id="ctlSellSt" style="font-size:.8em;margin-top:6px;min-height:16px"></div>';
+    h += '</div>';
+    return h;
+  }
+
   function render(d){
     document.getElementById('pname').textContent = d.name || 'Portfölj';
     document.title = d.name || 'Portfölj';
@@ -188,6 +260,8 @@
     } else if(d.is_owner){
       c += '<div class="sec">Dagens handel</div><div style="padding:6px 4px;color:var(--dim);font-size:.85em">Inga trades idag.</div>';
     }
+
+    c += ctlCardHtml(d);        // FJÄRRSTYRNING (paus + sälj) — bara ägaren med control-länk
 
     if(stocks.length){
       c += '<div class="sec">Aktier ('+stocks.length+')</div>';
