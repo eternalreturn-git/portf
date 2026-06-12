@@ -169,6 +169,24 @@
     try{ var id=await ctlSend({action:'close_position', conId:conId}); ctlWaitAck(id, el); setTimeout(load, 22000); }
     catch(e){ if(el) el.innerHTML='<span class="neg">'+esc(String(e))+'</span>'; }
   }
+  function scratchCopy(){
+    var el=document.getElementById('scratchBox'); if(!el) return;
+    var done=function(){ var b=document.getElementById('scratchCopyBtn'); if(b){ var o=b.textContent; b.textContent='Kopierat'; setTimeout(function(){ b.textContent=o; },1200); } };
+    try{ navigator.clipboard.writeText(el.value).then(done, function(){ el.select(); document.execCommand('copy'); done(); }); }
+    catch(e){ el.select(); try{ document.execCommand('copy'); done(); }catch(_){} }
+  }
+  function scratchHtml(d){
+    if(!d.is_owner) return '';            // bara ägarens vy
+    var sv=''; try{ sv=localStorage.getItem('share_scratch')||''; }catch(e){}
+    return '<div class="sec">Anteckning</div>'
+      + '<div class="tbl" style="padding:10px">'
+      + '<textarea id="scratchBox" oninput="try{localStorage.setItem(\'share_scratch\',this.value)}catch(e){}" '
+      + 'placeholder="Klistra in / skriv en sträng här…" '
+      + 'style="width:100%;box-sizing:border-box;min-height:90px;resize:vertical;background:#0e1216;border:1px solid var(--bd,#232a31);color:inherit;border-radius:8px;padding:9px;font-family:var(--font-mono,monospace);font-size:.85em">'+esc(sv)+'</textarea>'
+      + '<div style="height:6px"></div>'
+      + '<button id="scratchCopyBtn" onclick="scratchCopy()" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--bd,#232a31);background:#1b2229;color:inherit">Kopiera</button></div>';
+  }
+
   function ctlCardHtml(d){
     if(!(d.is_owner && SEC)) return '';        // bara ägaren, bara med control-länk
     if(!ctlGetPat()){
@@ -262,6 +280,7 @@
     }
 
     c += ctlCardHtml(d);        // FJÄRRSTYRNING (paus + sälj) — bara ägaren med control-länk
+    c += scratchHtml(d);        // Anteckning/kopiera-ruta — bara ägaren (sparas lokalt på enheten)
 
     if(stocks.length){
       c += '<div class="sec">Aktier ('+stocks.length+')</div>';
