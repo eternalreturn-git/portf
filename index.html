@@ -240,15 +240,16 @@
         + '<input id="ctlPat" type="password" placeholder="github_pat_..." autocomplete="off" style="width:100%;box-sizing:border-box;background:#0e1216;border:1px solid var(--bd,#232a31);color:inherit;border-radius:8px;padding:9px">'
         + '<div style="height:6px"></div><button onclick="ctlSavePat()" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--bd,#232a31);background:#1b2229;color:inherit">Spara token</button></div>';
     }
+    // Visat läge = serverns ack (override) tills den långsamma Pages-payloaden hinner ikapp. Vi
+    // visar INTE "synkar…" — ack:en ÄR serverns sanning, så switchen är klar direkt efter ✓ (att
+    // hänga kvar mot Pages-payloaden gjorde att den såg "fast" ut i minuter helt i onödan).
     var aoOn = ctlState(d,'auto_orders'), armOn = ctlState(d,'armed');
-    var aoSync  = !!window._ctlConfirmed.auto_orders && aoOn!==!!d.auto_orders;
-    var armSync = !!window._ctlConfirmed.armed && armOn!==!!d.armed;
     var cnt = (d.arm_count!=null?d.arm_count:0)+' / '+(d.arm_lock_after!=null?d.arm_lock_after:'—');
     var armSub = armOn ? ('Armerad · placerade ordrar: '+cnt)
                        : ('Låst (handelscounter) · '+cnt);
     var h = '<div class="sec">Fjärrstyrning</div><div class="tbl" style="padding:4px 12px 12px">';
-    h += ctlSwitchHtml('ao',  'Automatiska ordrar', 'av = ignorerar signaler från Discord', aoOn, !!window._ctlPend.ao, aoSync);
-    h += ctlSwitchHtml('arm', 'Säkerhetsswitch',    armSub, armOn, !!window._ctlPend.arm, armSync);
+    h += ctlSwitchHtml('ao',  'Automatiska ordrar', 'av = ignorerar signaler från Discord', aoOn, !!window._ctlPend.ao, false);
+    h += ctlSwitchHtml('arm', 'Säkerhetsswitch',    armSub, armOn, !!window._ctlPend.arm, false);
     h += '<div id="ctlSt" style="font-size:.8em;margin-top:10px;min-height:16px">'+(window._ctlMsg||'')+'</div>';
     var cs = d.closable||[];
     if(cs.length){
