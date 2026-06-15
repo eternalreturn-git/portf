@@ -149,56 +149,124 @@
     if(!(p.status===200||p.status===201)){ var et=await p.text(); throw new Error('skrivfel '+p.status+' '+et.slice(0,80)); }
     return cmd.id;
   }
-  async function ctlWaitAck(id, el){
-    for(var i=0;i<12;i++){ await new Promise(function(r){setTimeout(r,3000);});
+  function ctlSleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+  // Vänta på serverns ack.json (skrivs NÄR kommandot körts). Returnerar ack-objektet {ok,msg} eller
+  // null om inget kom inom ~42 s. Visar löpande räknare så man ser ATT det jobbar (inte hängt).
+  async function ctlWaitAck(id, label){
+    for(var i=0;i<14;i++){ await ctlSleep(3000);
+      ctlSetMsg('<span style="color:var(--dim)">'+(label||'Kommando')+': väntar på servern… '+((i+1)*3)+' s (pollar repot var 20:e sek)</span>');
       try{ var g=await fetch('https://api.github.com/repos/'+REPO+'/contents/cmd/ack.json?cb='+Date.now(),{headers:ctlHeaders(),cache:'no-store'});
         if(g.status===200){ var j=await g.json(); var dec=JSON.parse(decodeURIComponent(escape(atob((j.content||'').replace(/\n/g,''))))); var a=(dec.acks||[]).filter(function(x){return x.id===id;})[0];
-          if(a && el){ el.innerHTML='<span class="'+(a.ok?'pos':'neg')+'">'+(a.ok?'OK: ':'Avvisat: ')+esc(a.msg||'')+'</span>'; return; } }
+          if(a) return a; }
       }catch(e){}
     }
-    if(el) el.innerHTML='<span style="color:var(--dim)">Skickat — servern pollar var 20:e sek…</span>';
+    return null;
   }
-  async function ctlPause(paused){
-    var el=document.getElementById('ctlPauseSt'); if(el) el.innerHTML='<span style="color:var(--dim)">Skickar…</span>';
-    try{ var id=await ctlSend({action: paused?'resume_entries':'pause_entries'}); ctlWaitAck(id, el); setTimeout(load, 22000); }
-    catch(e){ if(el) el.innerHTML='<span class="neg">'+esc(String(e))+'</span>'; }
+  // ---- Delad status + per-switch lås (pending) + "bekräftat"-override ----
+  window._ctlPend = window._ctlPend || {};            // key → true medan vi väntar på serverns ack
+  window._ctlMsg  = window._ctlMsg  || '';            // senaste statusrad (överlever omritning)
+  window._ctlConfirmed = window._ctlConfirmed || {};  // field → {val,until}: ack:at läge tills payloaden hinner ikapp
+  function ctlSetMsg(h){ window._ctlMsg=h; var e=document.getElementById('ctlSt'); if(e) e.innerHTML=h; }
+  function ctlRenderCard(){ if(window._shareLast) render(window._shareLast); }   // rita om → speglar pending/serverläge
+  // Switchens VISADE läge = serverns (payload) — MEN direkt efter ett ack visar vi det bekräftade
+  // läget tills payloaden hunnit republiceras (annars skulle switchen "studsa tillbaka" 1 varv).
+  function ctlState(d, field){
+    var o=window._ctlConfirmed[field], sv=!!(d && d[field]);
+    if(o){ if(Date.now()>o.until || sv===o.val){ delete window._ctlConfirmed[field]; return sv; } return o.val; }
+    return sv;
+  }
+  var CTL_SW={
+    ao:  {on:'autoorders_on', off:'autoorders_off', label:'Automatiska ordrar', field:'auto_orders'},
+    arm: {on:'arm_on',        off:'arm_off',        label:'Säkerhetsswitch',    field:'armed'}
+  };
+  async function ctlSwitch(key){
+    var cfg=CTL_SW[key]; if(!cfg) return;
+    if(window._ctlPend[key]) return;                  // redan på väg → ignorera (switchen är låst)
+    var cur=ctlState(window._shareLast||{}, cfg.field), want=!cur;
+    window._ctlPend[key]=true; ctlRenderCard();        // lås switchen visuellt ("väntar…")
+    ctlSetMsg('<span style="color:var(--dim)">'+cfg.label+': skickar ('+(want?'PÅ':'AV')+')…</span>');
+    try{
+      var id=await ctlSend({action: want?cfg.on:cfg.off});
+      var a=await ctlWaitAck(id, cfg.label);
+      if(a && a.ok){
+        window._ctlConfirmed[cfg.field]={val:want, until:Date.now()+120000};   // visa bekräftat läge tills payload hinner ikapp
+        if(window._shareLast) window._shareLast[cfg.field]=want;
+        ctlSetMsg('<span class="pos">'+cfg.label+': '+(want?'PÅ':'AV')+' ✓ (bekräftat av servern)</span>');
+      } else if(a){ ctlSetMsg('<span class="neg">'+cfg.label+' avvisad: '+esc(a.msg||'')+'</span>'); }
+      else { ctlSetMsg('<span style="color:#e0b341">'+cfg.label+': ingen bekräftelse på 42 s — switchen är upplåst igen, försök gärna på nytt. (Servern kan vara mitt i en trade och köra vid nästa poll; switchen speglar alltid serverns faktiska läge.)</span>'); }
+    }catch(e){ ctlSetMsg('<span class="neg">'+cfg.label+': kunde inte skicka — '+esc(String(e))+'</span>'); }
+    finally{ window._ctlPend[key]=false; ctlRenderCard(); setTimeout(load, 22000); }
   }
   async function ctlSell(conId, tk){
+    if(window._ctlPend.sell) return;
     if(!confirm('Sälj pågående trade '+tk+'?')) return;
-    var el=document.getElementById('ctlSellSt'); if(el) el.innerHTML='<span style="color:var(--dim)">Skickar sälj '+esc(tk)+'…</span>';
-    try{ var id=await ctlSend({action:'close_position', conId:conId}); ctlWaitAck(id, el); setTimeout(load, 22000); }
-    catch(e){ if(el) el.innerHTML='<span class="neg">'+esc(String(e))+'</span>'; }
+    window._ctlPend.sell=true; ctlRenderCard();
+    ctlSetMsg('<span style="color:var(--dim)">Skickar sälj '+esc(tk)+'…</span>');
+    try{
+      var id=await ctlSend({action:'close_position', conId:conId});
+      var a=await ctlWaitAck(id, 'Sälj '+tk);
+      if(a && a.ok) ctlSetMsg('<span class="pos">Utfört: '+esc(a.msg||'sålt')+' ✓</span>');
+      else if(a) ctlSetMsg('<span class="neg">Avvisat: '+esc(a.msg||'')+'</span>');
+      else ctlSetMsg('<span style="color:#e0b341">Skickat, ingen bekräftelse på 42 s — servern kör vid nästa poll (var 20:e sek).</span>');
+    }catch(e){ ctlSetMsg('<span class="neg">Kunde inte skicka: '+esc(String(e))+'</span>'); }
+    finally{ window._ctlPend.sell=false; ctlRenderCard(); setTimeout(load, 22000); }
+  }
+  // En självständig toggle-switch (speglar serverläge; dimmad+låst medan vi väntar på ack).
+  function ctlSwitchHtml(key, label, sub, on, pend, syncing){
+    var col = on?'#22c55e':'#5a6470', bg = on?'#11331c':'#161b21', knob = on?'right:3px':'left:3px';
+    var pe = pend ? 'opacity:.45;pointer-events:none' : 'cursor:pointer';
+    return '<div style="display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid var(--bd,#232a31)">'
+      + '<div onclick="ctlSwitch(\''+key+'\')" style="position:relative;flex:0 0 52px;height:30px;border-radius:16px;background:'+bg+';border:1px solid '+col+'66;'+pe+'">'
+      +   '<span style="position:absolute;top:3px;'+knob+';width:22px;height:22px;border-radius:50%;background:'+col+';transition:all .15s"></span>'
+      + '</div>'
+      + '<div style="flex:1;min-width:0"><div style="font-weight:700">'+label
+      +   (pend?' <span style="color:#e0b341;font-size:.8em">· väntar på servern…</span>':'')
+      +   (!pend&&syncing?' <span style="color:#e0b341;font-size:.8em">· synkar…</span>':'')+'</div>'
+      +   (sub?'<div style="color:var(--dim);font-size:.78em">'+sub+'</div>':'')+'</div>'
+      + '</div>';
   }
   function ctlCardHtml(d){
     if(!(d.is_owner && SEC)) return '';        // bara ägaren, bara med control-länk
     if(!ctlGetPat()){
-      return '<div class="sec">Styrning</div><div class="tbl" style="padding:10px">'
+      return '<div class="sec">Fjärrstyrning</div><div class="tbl" style="padding:10px">'
         + '<div style="color:var(--dim);font-size:.82em;margin-bottom:6px">Klistra in din GitHub-token en gång (sparas bara här på enheten):</div>'
         + '<input id="ctlPat" type="password" placeholder="github_pat_..." autocomplete="off" style="width:100%;box-sizing:border-box;background:#0e1216;border:1px solid var(--bd,#232a31);color:inherit;border-radius:8px;padding:9px">'
         + '<div style="height:6px"></div><button onclick="ctlSavePat()" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--bd,#232a31);background:#1b2229;color:inherit">Spara token</button></div>';
     }
-    var paused = !!d.entries_paused;
-    var h = '<div class="sec">Styrning '+(paused?'<span style="color:#e0b341">· KÖP PAUSADE</span>':'')+'</div>';
-    h += '<div class="tbl" style="padding:10px">';
-    h += '<button onclick="ctlPause('+(paused?'true':'false')+')" style="width:100%;padding:11px;border-radius:8px;border:1px solid '+(paused?'#1d5a2e':'#5a431d')+';background:'+(paused?'#123a1c':'#3a2a12')+';color:'+(paused?'var(--pos)':'#e0b341')+'">'+(paused?'Återuppta nya köp':'Pausa nya köp')+'</button>';
-    h += '<div id="ctlPauseSt" style="font-size:.8em;margin-top:6px;min-height:16px"></div>';
+    var aoOn = ctlState(d,'auto_orders'), armOn = ctlState(d,'armed');
+    var aoSync  = !!window._ctlConfirmed.auto_orders && aoOn!==!!d.auto_orders;
+    var armSync = !!window._ctlConfirmed.armed && armOn!==!!d.armed;
+    var cnt = (d.arm_count!=null?d.arm_count:0)+' / '+(d.arm_lock_after!=null?d.arm_lock_after:'—');
+    var armSub = armOn ? ('Armerad · placerade ordrar: '+cnt)
+                       : ('Låst (handelscounter) · '+cnt);
+    var h = '<div class="sec">Fjärrstyrning</div><div class="tbl" style="padding:4px 12px 12px">';
+    h += ctlSwitchHtml('ao',  'Automatiska ordrar', 'av = ignorerar signaler från Discord', aoOn, !!window._ctlPend.ao, aoSync);
+    h += ctlSwitchHtml('arm', 'Säkerhetsswitch',    armSub, armOn, !!window._ctlPend.arm, armSync);
+    h += '<div id="ctlSt" style="font-size:.8em;margin-top:10px;min-height:16px">'+(window._ctlMsg||'')+'</div>';
     var cs = d.closable||[];
     if(cs.length){
-      h += '<div style="color:var(--dim);font-size:.78em;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.06em">Pågående trades</div>';
+      h += '<div style="color:var(--dim);font-size:.78em;margin:10px 0 2px;text-transform:uppercase;letter-spacing:.06em">Pågående trades</div>';
       cs.forEach(function(x){
-        h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--bd,#232a31)">'
-          + '<div><span class="tk">'+esc(x.ticker||'?')+'</span> <span style="color:var(--dim);font-size:.8em">'+(x.qty||0)+' st'+(x.sim?' · sim':'')+'</span></div>'
-          + '<button onclick="ctlSell('+x.conId+',\''+esc(x.ticker||'')+'\')" style="flex:0 0 86px;padding:8px;border-radius:8px;border:1px solid #5a1d2e;background:#3a1620;color:var(--neg)">Sälj</button></div>';
+        var plTxt='';
+        if(x.pl_sek!=null || x.pl_pct!=null){
+          var pos=(x.pl_sek!=null)?(x.pl_sek>=0):(x.pl_pct>=0), c2=pos?'var(--pos)':'var(--neg)', parts=[];
+          if(x.pl_pct!=null) parts.push((x.pl_pct>=0?'+':'−')+Math.abs(x.pl_pct).toFixed(2)+'%');
+          if(x.pl_sek!=null) parts.push((x.pl_sek>=0?'+':'−')+kr(Math.abs(x.pl_sek)));
+          plTxt='<div style="color:'+c2+';font-size:.82em;font-weight:600">'+parts.join(' · ')+'</div>';
+        }
+        h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--bd,#232a31)">'
+          + '<div><span class="tk">'+esc(x.ticker||'?')+'</span> <span style="color:var(--dim);font-size:.8em">'+(x.qty||0)+' st'+(x.sim?' · sim':'')+'</span>'+plTxt+'</div>'
+          + '<button onclick="ctlSell('+x.conId+',\''+esc(x.ticker||'')+'\')"'+(window._ctlPend.sell?' disabled':'')+' style="flex:0 0 86px;padding:8px;border-radius:8px;border:1px solid #5a1d2e;background:#3a1620;color:var(--neg)'+(window._ctlPend.sell?';opacity:.5':'')+'">Sälj</button></div>';
       });
     } else {
       h += '<div style="color:var(--dim);font-size:.82em;margin-top:6px">Inga pågående trades just nu.</div>';
     }
-    h += '<div id="ctlSellSt" style="font-size:.8em;margin-top:6px;min-height:16px"></div>';
     h += '</div>';
     return h;
   }
 
   function render(d){
+    window._shareLast = d;                  // senaste payload → styrningen kan flippa knappen optimistiskt
     document.getElementById('pname').textContent = d.name || 'Portfölj';
     document.title = d.name || 'Portfölj';
     // Belåningsgrad = belåning / bruttovärde (hävstångsnivå).
