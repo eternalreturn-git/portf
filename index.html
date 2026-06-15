@@ -189,8 +189,11 @@
       var id=await ctlSend({action: want?cfg.on:cfg.off});
       var a=await ctlWaitAck(id, cfg.label);
       if(a && a.ok){
-        window._ctlConfirmed[cfg.field]={val:want, until:Date.now()+120000};   // visa bekräftat läge tills payload hinner ikapp
-        if(window._shareLast) window._shareLast[cfg.field]=want;
+        // VIKTIGT: mutera INTE window._shareLast här — override är den enda optimistiska källan.
+        // (Satte vi shareLast=want skulle ctlState se sv===val och rensa override direkt → switchen
+        // studsade tillbaka till den ännu icke-republicerade payloaden vid nästa load.) Override
+        // hålls tills den republicerade payloaden visar samma värde (sv===val), eller 10 min.
+        window._ctlConfirmed[cfg.field]={val:want, until:Date.now()+600000};
         ctlSetMsg('<span class="pos">'+cfg.label+': '+(want?'PÅ':'AV')+' ✓ (bekräftat av servern)</span>');
       } else if(a){ ctlSetMsg('<span class="neg">'+cfg.label+' avvisad: '+esc(a.msg||'')+'</span>'); }
       else { ctlSetMsg('<span style="color:#e0b341">'+cfg.label+': ingen bekräftelse på 42 s — switchen är upplåst igen, försök gärna på nytt. (Servern kan vara mitt i en trade och köra vid nästa poll; switchen speglar alltid serverns faktiska läge.)</span>'); }
@@ -199,7 +202,11 @@
   }
   async function ctlSell(conId, tk){
     if(window._ctlPend.sell) return;
-    if(!confirm('Sälj pågående trade '+tk+'?')) return;
+    // Bekräftelse med antal + P/L så man ser exakt vad som säljs (riktiga pengar).
+    var _x=((window._shareLast&&window._shareLast.closable)||[]).filter(function(z){return z.conId===conId;})[0]||{};
+    var _pl=[]; if(_x.pl_pct!=null) _pl.push((_x.pl_pct>=0?'+':'−')+Math.abs(_x.pl_pct).toFixed(2)+'%');
+    if(_x.pl_sek!=null) _pl.push((_x.pl_sek>=0?'+':'−')+kr(Math.abs(_x.pl_sek)));
+    if(!confirm('Sälj pågående trade '+tk+(_x.qty?' ('+_x.qty+' st)':'')+'?'+(_pl.length?'\nP/L just nu: '+_pl.join(' · '):''))) return;
     window._ctlPend.sell=true; ctlRenderCard();
     ctlSetMsg('<span style="color:var(--dim)">Skickar sälj '+esc(tk)+'…</span>');
     try{
