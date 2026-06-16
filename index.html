@@ -279,11 +279,11 @@
     document.title = d.name || 'Portfölj';
     // Belåningsgrad = belåning / bruttovärde (hävstångsnivå).
     var belPct = (d.gross_sek ? (d.belaning_sek/d.gross_sek*100).toFixed(2)+'%' : '—');
-    // TAKT PER MÅNAD: snitt vinst/förlust per månad = total utveckling (P/L) ÷ antal månader sedan
-    // portföljens början (cagr_days/30.44). Ren snitt-takt, inte prognos.
-    var _mon = (d.cagr_days && d.cagr_days > 0 && d.pnl_sek != null)
-             ? (d.pnl_sek / (d.cagr_days/30.44)) : null;
+    // TAKT PER MÅNAD: NUVARANDE insatt kapital × NAV-utvecklingen sedan start (ej kostnadsbas),
+    // fördelat över hela portföljens tid. = equity_nu × total% ÷ antal månader (cagr_days/30.44).
     var _monMonths = d.cagr_days ? (d.cagr_days/30.44) : null;
+    var _mon = (_monMonths && _monMonths > 0 && d.cagr_total_pct != null && d.equity_sek != null)
+             ? (d.equity_sek * (d.cagr_total_pct/100) / _monMonths) : null;
     var takt = (_mon==null) ? '<div class="card sm"><div class="k">Takt per månad</div><div class="v">—</div></div>'
       : '<div class="card sm"><div class="k">Takt per månad</div>'
         + '<div class="v '+cls(_mon)+'">'+(_mon>=0?'+':'')+kr(_mon)+'</div>'
