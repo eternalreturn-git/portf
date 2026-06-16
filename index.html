@@ -279,13 +279,23 @@
     document.title = d.name || 'Portfölj';
     // Belåningsgrad = belåning / bruttovärde (hävstångsnivå).
     var belPct = (d.gross_sek ? (d.belaning_sek/d.gross_sek*100).toFixed(2)+'%' : '—');
+    // TAKT PER MÅNAD: snitt vinst/förlust per månad = total utveckling (P/L) ÷ antal månader sedan
+    // portföljens början (cagr_days/30.44). Ren snitt-takt, inte prognos.
+    var _mon = (d.cagr_days && d.cagr_days > 0 && d.pnl_sek != null)
+             ? (d.pnl_sek / (d.cagr_days/30.44)) : null;
+    var _monMonths = d.cagr_days ? (d.cagr_days/30.44) : null;
+    var takt = (_mon==null) ? '<div class="card sm"><div class="k">Takt per månad</div><div class="v">—</div></div>'
+      : '<div class="card sm"><div class="k">Takt per månad</div>'
+        + '<div class="v '+cls(_mon)+'">'+(_mon>=0?'+':'')+kr(_mon)+'</div>'
+        + '<div class="s">snitt sedan start ('+_monMonths.toFixed(1)+' mån)</div></div>';
     var c = ''
       + '<div class="cards">'
       +   '<div class="card"><div class="k">Totalt eget kapital</div><div class="v">'+kr(d.equity_sek)+'</div></div>'
       +   '<div class="card"><div class="k">Utveckling på insatt kapital</div><div class="v '+cls(d.pnl_sek)+'">'+(d.pnl_sek!=null?(d.pnl_sek>=0?'+':'')+kr(d.pnl_sek):'—')+'</div>'
       +     '<div class="s '+cls(d.pnl_pct)+'">'+pct(d.pnl_pct)+'</div></div>'
-      +   '<div class="card sm"><div class="k">Marknadsexponering</div><div class="v">'+kr(d.gross_sek)+'</div></div>'
-      +   '<div class="card sm"><div class="k">Belåning</div><div class="v">'+kr(d.belaning_sek)+'</div><div class="s">'+belPct+'</div></div>'
+      +   '<div class="card sm"><div class="k">Marknadsexponering</div><div class="v">'+kr(d.gross_sek)+'</div>'
+      +     '<div class="s">Belåning '+kr(d.belaning_sek)+' ('+belPct+')</div></div>'
+      +   takt
       + '</div>';
 
     // Utvecklingsgraf (samma %-serie som GUI:t, utan cirkeldiagram). Tidknapparna
