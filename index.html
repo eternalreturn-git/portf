@@ -279,15 +279,28 @@
     document.title = d.name || 'Portfölj';
     // Belåningsgrad = belåning / bruttovärde (hävstångsnivå).
     var belPct = (d.gross_sek ? (d.belaning_sek/d.gross_sek*100).toFixed(2)+'%' : '—');
-    // TAKT PER MÅNAD: NUVARANDE insatt kapital × NAV-utvecklingen sedan start (ej kostnadsbas),
-    // fördelat över hela portföljens tid. = equity_nu × total% ÷ antal månader (cagr_days/30.44).
-    var _monMonths = d.cagr_days ? (d.cagr_days/30.44) : null;
-    var _mon = (_monMonths && _monMonths > 0 && d.cagr_total_pct != null && d.equity_sek != null)
-             ? (d.equity_sek * (d.cagr_total_pct/100) / _monMonths) : null;
+    // TAKT PER MÅNAD: nuvarande kapital × portföljens FAKTISKA utveckling över den period vi har data
+    // (SAMMA %-serie som grafen visar), extrapolerat till en månad. Dvs "om nuvarande kapital legat inne
+    // hela perioden". Tas ur den längsta tillgängliga grafserien (helst 'all') → konsekvent med grafens
+    // utvecklings-%, inte NAV-dagsloggen (som kan ha annan startpunkt).
+    var _fullSeries = (function(ch){
+      if(!ch) return [];
+      var best=[]; ['all','y','ytd','1m','7d','today'].forEach(function(k){ if((ch[k]||[]).length>best.length) best=ch[k]; });
+      return best;
+    })(d.chart);
+    var _mon=null, _monSub='';
+    if(_fullSeries.length>=2 && d.equity_sek!=null){
+      var _devPct = _fullSeries[_fullSeries.length-1].p - _fullSeries[0].p;   // utveckling över perioden (%)
+      var _spanD  = (_fullSeries[_fullSeries.length-1].t - _fullSeries[0].t)/86400;
+      if(_spanD > 0.4){
+        _mon = d.equity_sek * (_devPct/100) * (30.44/_spanD);   // extrapolerad månadstakt på nuvarande kapital
+        _monSub = 'extrapolerat från '+(_spanD<10?_spanD.toFixed(1):Math.round(_spanD))+' dgr ('+(_devPct>=0?'+':'')+_devPct.toFixed(1)+'%)';
+      }
+    }
     var takt = (_mon==null) ? '<div class="card sm"><div class="k">Takt per månad</div><div class="v">—</div></div>'
       : '<div class="card sm"><div class="k">Takt per månad</div>'
         + '<div class="v '+cls(_mon)+'">'+(_mon>=0?'+':'')+kr(_mon)+'</div>'
-        + '<div class="s">snitt sedan start ('+_monMonths.toFixed(1)+' mån)</div></div>';
+        + '<div class="s">'+_monSub+'</div></div>';
     var c = ''
       + '<div class="cards">'
       +   '<div class="card"><div class="k">Totalt eget kapital</div><div class="v">'+kr(d.equity_sek)+'</div></div>'
