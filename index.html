@@ -138,7 +138,7 @@
   function ctlRid(){ var u=new Uint8Array(12); crypto.getRandomValues(u); var h=''; for(var i=0;i<u.length;i++) h+=('0'+u[i].toString(16)).slice(-2); return h; }
   async function ctlSend(cmd){
     cmd.id=ctlRid(); cmd.ts=Date.now();
-    cmd.sig=await ctlHmac([cmd.id, cmd.action, (cmd.conId!=null?cmd.conId:''), cmd.ts].join('|'));
+    cmd.sig=await ctlHmac([cmd.id, cmd.action, (cmd.conId!=null?cmd.conId:''), (cmd.key!=null?cmd.key:''), cmd.ts].join('|'));
     var api='https://api.github.com/repos/'+REPO+'/contents/cmd/commands.json', sha=null, cmds=[];
     var g=await fetch(api+'?cb='+Date.now(),{headers:ctlHeaders(),cache:'no-store'});
     if(g.status===200){ var j=await g.json(); sha=j.sha; try{ var dec=JSON.parse(decodeURIComponent(escape(atob((j.content||'').replace(/\n/g,''))))); cmds=dec.cmds||[]; }catch(e){} }
@@ -200,17 +200,17 @@
     }catch(e){ ctlSetMsg('<span class="neg">'+cfg.label+': kunde inte skicka — '+esc(String(e))+'</span>'); }
     finally{ window._ctlPend[key]=false; ctlRenderCard(); setTimeout(load, 22000); }
   }
-  async function ctlSell(conId, tk){
+  async function ctlSell(key, tk){
     if(window._ctlPend.sell) return;
     // Bekräftelse med antal + P/L så man ser exakt vad som säljs (riktiga pengar).
-    var _x=((window._shareLast&&window._shareLast.closable)||[]).filter(function(z){return z.conId===conId;})[0]||{};
+    var _x=((window._shareLast&&window._shareLast.closable)||[]).filter(function(z){return z.key===key;})[0]||{};
     var _pl=[]; if(_x.pl_pct!=null) _pl.push((_x.pl_pct>=0?'+':'−')+Math.abs(_x.pl_pct).toFixed(2)+'%');
     if(_x.pl_sek!=null) _pl.push((_x.pl_sek>=0?'+':'−')+kr(Math.abs(_x.pl_sek)));
     if(!confirm('Sälj pågående trade '+tk+(_x.qty?' ('+_x.qty+' st)':'')+'?'+(_pl.length?'\nP/L just nu: '+_pl.join(' · '):''))) return;
     window._ctlPend.sell=true; ctlRenderCard();
     ctlSetMsg('<span style="color:var(--dim)">Skickar sälj '+esc(tk)+'…</span>');
     try{
-      var id=await ctlSend({action:'close_position', conId:conId});
+      var id=await ctlSend({action:'close_position', key:key});
       var a=await ctlWaitAck(id, 'Sälj '+tk);
       if(a && a.ok) ctlSetMsg('<span class="pos">Utfört: '+esc(a.msg||'sålt')+' ✓</span>');
       else if(a) ctlSetMsg('<span class="neg">Avvisat: '+esc(a.msg||'')+'</span>');
@@ -264,7 +264,7 @@
         }
         h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--bd,#232a31)">'
           + '<div><span class="tk">'+esc(x.ticker||'?')+'</span> <span style="color:var(--dim);font-size:.8em">'+(x.qty||0)+' st'+(x.sim?' · sim':'')+'</span>'+plTxt+'</div>'
-          + '<button onclick="ctlSell('+x.conId+',\''+esc(x.ticker||'')+'\')"'+(window._ctlPend.sell?' disabled':'')+' style="flex:0 0 86px;padding:8px;border-radius:8px;border:1px solid #5a1d2e;background:#3a1620;color:var(--neg)'+(window._ctlPend.sell?';opacity:.5':'')+'">Sälj</button></div>';
+          + '<button onclick="ctlSell(\''+esc(String(x.key||''))+'\',\''+esc(x.ticker||'')+'\')"'+(window._ctlPend.sell?' disabled':'')+' style="flex:0 0 86px;padding:8px;border-radius:8px;border:1px solid #5a1d2e;background:#3a1620;color:var(--neg)'+(window._ctlPend.sell?';opacity:.5':'')+'">Sälj</button></div>';
       });
     } else {
       h += '<div style="color:var(--dim);font-size:.82em;margin-top:6px">Inga pågående trades just nu.</div>';
@@ -292,8 +292,11 @@
     if(_fullSeries.length>=2 && d.equity_sek!=null){
       var _devPct = _fullSeries[_fullSeries.length-1].p - _fullSeries[0].p;   // utveckling över perioden (%)
       var _spanD  = (_fullSeries[_fullSeries.length-1].t - _fullSeries[0].t)/86400;
-      if(_spanD > 0.4){
-        _mon = d.equity_sek * (_devPct/100) * (30.44/_spanD);   // extrapolerad månadstakt på nuvarande kapital
+      // Kräv minst ~1 dygns data, och TA på extrapoleringsfaktorn (max som från 1 dygn) så en
+      // ultrakort period inte ger en absurd månadssiffra (t.ex. 0,5 dagars +3% → "+183%/mån").
+      if(_spanD >= 1){
+        var _mult = Math.min(30.44/_spanD, 30.44);             // aldrig mer aggressivt än 1-dygns-extrapolering
+        _mon = d.equity_sek * (_devPct/100) * _mult;            // extrapolerad månadstakt på nuvarande kapital
         _monSub = 'extrapolerat från '+(_spanD<10?_spanD.toFixed(1):Math.round(_spanD))+' dgr ('+(_devPct>=0?'+':'')+_devPct.toFixed(1)+'%)';
       }
     }
