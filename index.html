@@ -417,15 +417,21 @@
     c += '<div class="tbl"><table><thead><tr><th>Kontanter</th><th>Värde</th><th>Andel</th></tr></thead><tbody>'
        + '<tr><td>Saldo</td><td>'+kr(cash)+'</td><td>'+apTxt(cash)+'</td></tr>'
        + '</tbody></table></div>';
-    // SYSTEMLOGG-SPEGEL (bara ägaren) — samma färgkoder som GUI:t. NYASTE ÖVERST → senaste syns direkt
-    // utan scroll; scrolla ned för historik. Stort, lättscrollat fönster (mobil + desktop).
+    // SYSTEMLOGG-SPEGEL (bara ägaren) — samma färgkoder som GUI:t. NYASTE NEDERST (som riktiga
+    // systemloggen). Auto-scrollar till botten vid omritning OM du redan var längst ned (annars
+    // behålls din position medan du läser historik). Stort, lättscrollat fönster (mobil + desktop).
     if(Array.isArray(d.log) && d.log.length){
       c += '<div class="sec">Systemlogg</div>';
-      c += '<div class="logbox">' + d.log.slice().reverse().map(function(l){
+      c += '<div class="logbox" id="logbox">' + d.log.map(function(l){
             return '<div class="logln" style="color:'+shareLogColor(l)+'">'+esc(l)+'</div>';
           }).join('') + '</div>';
     }
+    // Bevara "vid botten?"-läget över omritningen (innehållet byggs om var 30:e sek av poll-loopen).
+    var _olb = document.getElementById('logbox');
+    var _logAtBottom = !_olb || (_olb.scrollHeight - _olb.scrollTop - _olb.clientHeight < 48);
     document.getElementById('content').innerHTML = c;
+    var _nlb = document.getElementById('logbox');
+    if(_nlb && _logAtBottom) _nlb.scrollTop = _nlb.scrollHeight;   // håll pinnad vid senaste raden
     shareRenderChart();
     freshness(d.updated_epoch);
   }
