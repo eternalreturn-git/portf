@@ -306,12 +306,14 @@
     if(_fullSeries.length>=2 && d.equity_sek!=null){
       var _devPct = _fullSeries[_fullSeries.length-1].p - _fullSeries[0].p;   // utveckling över perioden (%)
       var _spanD  = (_fullSeries[_fullSeries.length-1].t - _fullSeries[0].t)/86400;
-      // Kräv minst ~1 dygns data, och TA på extrapoleringsfaktorn (max som från 1 dygn) så en
-      // ultrakort period inte ger en absurd månadssiffra (t.ex. 0,5 dagars +3% → "+183%/mån").
+      // GEOMETRISK (kompounderad) månadstakt ur HELA historiken → svarar på "med mitt nuvarande
+      // kapital, vad kan jag förvänta mig per månad enligt all historisk data": (1+total)^(30.44/dgr)−1.
+      // Kräv ≥1 dygn (ultrakort period skulle ge en absurd siffra). %-serien är värdebaserad/flödesjusterad.
       if(_spanD >= 1){
-        var _mult = Math.min(30.44/_spanD, 30.44);             // aldrig mer aggressivt än 1-dygns-extrapolering
-        _mon = d.equity_sek * (_devPct/100) * _mult;            // extrapolerad månadstakt på nuvarande kapital
-        _monSub = 'extrapolerat från '+(_spanD<10?_spanD.toFixed(1):Math.round(_spanD))+' dgr ('+(_devPct>=0?'+':'')+_devPct.toFixed(1)+'%)';
+        var _base = Math.max(0.01, 1 + _devPct/100);
+        var _rate = Math.pow(_base, 30.44/_spanD) - 1;         // förväntad månadsavkastning (andel)
+        _mon = d.equity_sek * _rate;                            // på nuvarande eget kapital (kr)
+        _monSub = 'geometriskt ur '+(_spanD<10?_spanD.toFixed(1):Math.round(_spanD))+' dgr historik ('+(_rate>=0?'+':'')+(_rate*100).toFixed(1)+'%/mån)';
       }
     }
     var takt = (_mon==null) ? '<div class="card sm"><div class="k">Takt per månad</div><div class="v">—</div></div>'
