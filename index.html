@@ -50,6 +50,11 @@
   tbody tr:hover td{background:rgba(255,255,255,.05)}
   .tk{font-weight:700} .ty{font-size:.66rem;color:var(--dim);margin-left:6px}
   .osub{font-size:.66rem;color:var(--dim);font-family:var(--mono);margin-top:2px;white-space:normal;line-height:1.35}
+  /* Systemlogg-spegel: stort, lättscrollat fönster (60vh), monospace, färgkodat per rad. */
+  .logbox{max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+    background:#0a0d12;border:1px solid var(--border,#1c2530);border-radius:10px;padding:10px 12px;
+    font-family:var(--mono,ui-monospace,Menlo,Consolas,monospace);font-size:13px;line-height:1.5}
+  .logln{white-space:pre-wrap;word-break:break-word;padding:1px 0}
   .foot{margin-top:20px;font-size:.7rem;color:var(--dim);text-align:center;line-height:1.6}
   .msg{padding:40px 16px;text-align:center;color:var(--dim)}
   .chtog{display:flex;gap:6px;margin:2px 0 8px;flex-wrap:wrap}
@@ -273,6 +278,15 @@
     return h;
   }
 
+  // Systemloggens färgkodning — SAMMA nyckelords-regler som GUI:t (logColor i app.js). Emojis är redan
+  // strippade server-sidan; färgen styrs av orden. Konkreta hex (tema-oberoende på delningssidan).
+  function shareLogColor(l){
+    if(/\bIB \[\d+\]|IB-fel:/.test(l)) return '#5ec8ff';
+    if(/\bFEL:|VALIDERINGSFEL|Exekveringsfel|LLM FEL|Worker-fel|Anslutningsfel|misslyck|KRASCH|\bFAIL\b|Cancelled|ApiCancelled|Inactive|inaktiv|reject|avvisa|\bneka|avbrut|avbröt|avbryter|BLOCKERING|BLOCKERAD|SÄKERHETSSWITCH AKTIV|HALLUCINATION|CALL-KONTROLL|STOPP:|Otillräck|räcker (inte|ej)|[Kk]unde inte|kortning|AVBRUTET|AVBRUTEN|VARNING/i.test(l)) return '#ef4444';
+    if(/\bFILLED\b|\bFilled\b|\bSubmitted\b|\bKÖP\b|\bSÄLJ\b|Pengar säkrade|Validering godkänd|Återansluten|Ansluten till IB|godkänd/.test(l)) return '#22c55e';
+    if(/Signal mottagen|Signature detected|LLM (redo|omladdad|AKTIV|aktiv|pinnad)|Bridge-tillägg AKTIVT|Bridge.*AKTIV|Server startad/.test(l)) return '#ff6fc7';
+    return '#8a8f9f';
+  }
   function render(d){
     window._shareLast = d;                  // senaste payload → styrningen kan flippa knappen optimistiskt
     document.getElementById('pname').textContent = d.name || 'Portfölj';
@@ -403,6 +417,14 @@
     c += '<div class="tbl"><table><thead><tr><th>Kontanter</th><th>Värde</th><th>Andel</th></tr></thead><tbody>'
        + '<tr><td>Saldo</td><td>'+kr(cash)+'</td><td>'+apTxt(cash)+'</td></tr>'
        + '</tbody></table></div>';
+    // SYSTEMLOGG-SPEGEL (bara ägaren) — samma färgkoder som GUI:t. NYASTE ÖVERST → senaste syns direkt
+    // utan scroll; scrolla ned för historik. Stort, lättscrollat fönster (mobil + desktop).
+    if(Array.isArray(d.log) && d.log.length){
+      c += '<div class="sec">Systemlogg</div>';
+      c += '<div class="logbox">' + d.log.slice().reverse().map(function(l){
+            return '<div class="logln" style="color:'+shareLogColor(l)+'">'+esc(l)+'</div>';
+          }).join('') + '</div>';
+    }
     document.getElementById('content').innerHTML = c;
     shareRenderChart();
     freshness(d.updated_epoch);
