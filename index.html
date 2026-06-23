@@ -313,7 +313,7 @@
         var _base = Math.max(0.01, 1 + _devPct/100);
         var _rate = Math.pow(_base, 30.44/_spanD) - 1;         // förväntad månadsavkastning (andel)
         _mon = d.equity_sek * _rate;                            // på nuvarande eget kapital (kr)
-        _monSub = 'geometriskt ur '+(_spanD<10?_spanD.toFixed(1):Math.round(_spanD))+' dgr historik ('+(_rate>=0?'+':'')+(_rate*100).toFixed(1)+'%/mån)';
+        _monSub = (_rate>=0?'+':'')+(_rate*100).toFixed(1)+'%/mån';
       }
     }
     var takt = (_mon==null) ? '<div class="card sm"><div class="k">Takt per månad</div><div class="v">—</div></div>'
