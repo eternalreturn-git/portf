@@ -99,6 +99,7 @@
 <script>
   var T = new URLSearchParams(location.search).get('t');
   var K = new URLSearchParams(location.hash.slice(1)).get('k');   // nyckel, ej till servern
+  var SHARE_REPO = 'eternalreturn-git/portf';     // ägare/namn → datan hämtas via raw.githubusercontent (förbi Pages-bygget)
   function msg(t){ var m=document.getElementById('msg'); if(m) m.textContent=t; }
   function b64ToBytes(b64){ var bin=atob(b64); var u=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
   function b64uToBytes(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return b64ToBytes(s); }
@@ -724,13 +725,33 @@
     ['.chcross','.chcross-h','.chtip','.chtime'].forEach(function(s){ var el=wrap.querySelector(s); if(el) el.style.display='none'; });
   }
 
+  // DATAKÄLLA: hämta i FÖRSTA hand från raw.githubusercontent.com (läser filen DIREKT ur repot →
+  // förbi GitHub Pages bygg-kö/~10-bygg-per-timme-gränsen som gör att en committad uppdatering kan
+  // synas först efter 30 min–timmar). Faller tillbaka på den relativa Pages-sökvägen om repot är privat
+  // (raw kräver då auth → 404). Cachar vilken bas som funkar så bara FÖRSTA laddningen prövar.
+  var _dataBase = null;   // null = ej bestämd; '' = relativ Pages-fallback; annars raw-bas (…/<branch>/)
   function load(){
     if(!T){ msg('Ogiltig länk (saknar id).'); return; }
-    fetch('d/'+encodeURIComponent(T)+'.json?_='+Date.now(), {cache:'no-store'})
-      .then(function(r){ if(!r.ok) throw 0; return r.text(); })
-      .then(function(txt){ txt=txt.trim(); return K ? decryptBlob(txt) : JSON.parse(txt); })
-      .then(render)
-      .catch(function(){ msg('Kunde inte hämta/avkoda data. Kontrollera länken.'); freshness(null); });
+    var f = 'd/'+encodeURIComponent(T)+'.json?_='+Date.now();
+    var urls;
+    if(_dataBase!=null){ urls=[_dataBase ? _dataBase+f : f]; }
+    else if(SHARE_REPO && SHARE_REPO.indexOf('/')>0){
+      var raw='https://raw.githubusercontent.com/'+SHARE_REPO+'/';
+      urls=[raw+'main/'+f, raw+'master/'+f, f];   // raw main → raw master → relativ Pages
+    } else { urls=[f]; }
+    var i=0;
+    (function tryNext(){
+      if(i>=urls.length){ _dataBase=null; msg('Kunde inte hämta/avkoda data. Kontrollera länken.'); freshness(null); return; }
+      var u=urls[i++];
+      fetch(u, {cache:'no-store'})
+        .then(function(r){ if(!r.ok) throw 0; return r.text(); })
+        .then(function(txt){
+          if(_dataBase==null){ var p=u.indexOf('/d/'); _dataBase=(u.indexOf('raw.githubusercontent.com')>=0 && p>=0)?u.slice(0,p+1):''; }
+          txt=txt.trim(); return K ? decryptBlob(txt) : JSON.parse(txt);
+        })
+        .then(render)
+        .catch(function(){ tryNext(); });
+    })();
   }
   load();
   setInterval(load, 30000);
