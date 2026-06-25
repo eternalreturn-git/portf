@@ -145,15 +145,25 @@
   async function ctlSend(cmd){
     cmd.id=ctlRid(); cmd.ts=Date.now();
     cmd.sig=await ctlHmac([cmd.id, cmd.action, (cmd.conId!=null?cmd.conId:''), (cmd.key!=null?cmd.key:''), cmd.ts].join('|'));
-    var api='https://api.github.com/repos/'+REPO+'/contents/cmd/commands.json', sha=null, cmds=[];
-    var g=await fetch(api+'?cb='+Date.now(),{headers:ctlHeaders(),cache:'no-store'});
-    if(g.status===200){ var j=await g.json(); sha=j.sha; try{ var dec=JSON.parse(decodeURIComponent(escape(atob((j.content||'').replace(/\n/g,''))))); cmds=dec.cmds||[]; }catch(e){} }
-    cmds.push(cmd); cmds=cmds.slice(-10);
-    var put={message:'cmd '+cmd.action, content:btoa(unescape(encodeURIComponent(JSON.stringify({cmds:cmds}))))};
-    if(sha) put.sha=sha;
-    var p=await fetch(api,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ctlHeaders()),body:JSON.stringify(put)});
-    if(!(p.status===200||p.status===201)){ var et=await p.text(); throw new Error('skrivfel '+p.status+' '+et.slice(0,80)); }
-    return cmd.id;
+    var api='https://api.github.com/repos/'+REPO+'/contents/cmd/commands.json';
+    // GitHub:s Contents-API kan servera en GAMMAL sha (eventual consistency, trots cache-bust) → PUT ger
+    // 409 "is at X but expected Y". Hämta då om sha + försök igen (samma mönster som serversidan,
+    // _gh_put_file). Annat fel (401/403 = fel/saknad token-access) → ge upp direkt, ingen poäng att loopa.
+    var lastErr='skrivfel';
+    for(var attempt=0; attempt<4; attempt++){
+      var sha=null, cmds=[];
+      var g=await fetch(api+'?cb='+Date.now(),{headers:ctlHeaders(),cache:'no-store'});
+      if(g.status===200){ var j=await g.json(); sha=j.sha; try{ var dec=JSON.parse(decodeURIComponent(escape(atob((j.content||'').replace(/\n/g,''))))); cmds=dec.cmds||[]; }catch(e){} }
+      var mine=cmds.concat([cmd]).slice(-10);
+      var put={message:'cmd '+cmd.action, content:btoa(unescape(encodeURIComponent(JSON.stringify({cmds:mine}))))};
+      if(sha) put.sha=sha;
+      var p=await fetch(api,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ctlHeaders()),body:JSON.stringify(put)});
+      if(p.status===200||p.status===201) return cmd.id;
+      var et=await p.text(); lastErr='skrivfel '+p.status+' '+et.slice(0,80);
+      if(p.status===409 || p.status===422){ await ctlSleep(500+attempt*400); continue; }   // sha-race → hämta om + igen
+      throw new Error(lastErr);                                                              // 401/403/etc → ge upp
+    }
+    throw new Error(lastErr+' (gav upp efter omförsök)');
   }
   function ctlSleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
   // Vänta på serverns ack.json (skrivs NÄR kommandot körts). Returnerar ack-objektet {ok,msg} eller
