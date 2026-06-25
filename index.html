@@ -251,8 +251,11 @@
     // hänga kvar mot Pages-payloaden gjorde att den såg "fast" ut i minuter helt i onödan).
     var aoOn = ctlState(d,'auto_orders'), armOn = ctlState(d,'armed');
     var cnt = (d.arm_count!=null?d.arm_count:0)+' / '+(d.arm_lock_after!=null?d.arm_lock_after:'—');
-    var armSub = armOn ? ('Armerad · placerade ordrar: '+cnt)
-                       : ('Låst (handelscounter) · '+cnt);
+    // Säkerhetsswitchen disarmeras av TVÅ triggers: antal ordrar OCH dagsomsättning (köp+sälj). Visa båda;
+    // re-arm (slå på switchen) nollställer båda. Omsättning visas bara när en gräns är satt (>0).
+    var _toL = +d.turnover_limit||0, _toN = +d.turnover_today||0;
+    var _toTxt = _toL>0 ? (' · omsättn '+kr(_toN)+' / '+kr(_toL)) : '';
+    var armSub = (armOn ? ('Armerad · ordrar: '+cnt) : ('Låst · ordrar: '+cnt)) + _toTxt;
     var h = '<div class="sec">Fjärrstyrning</div><div class="tbl" style="padding:4px 12px 12px">';
     h += ctlSwitchHtml('ao',  'Automatiska ordrar', 'av = ignorerar signaler från Discord', aoOn, !!window._ctlPend.ao, false);
     h += ctlSwitchHtml('arm', 'Säkerhetsswitch',    armSub, armOn, !!window._ctlPend.arm, false);
