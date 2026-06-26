@@ -127,15 +127,20 @@
     if(epoch) window._shareEpoch = epoch;       // ny stämpel från en render → spara den senaste
     epoch = window._shareEpoch;                 // timern (anropar utan arg) + render använder senaste stämpeln
     var dot=document.getElementById('dot'), f=document.getElementById('fresh');
-    if(!epoch){ dot.className='dot'; f.textContent='okänd'; return; }
-    var age=Math.max(0, Math.floor(Date.now()/1000 - epoch));
-    if(age < 150){
-      dot.className='dot live';
-      f.textContent = 'Live — uppdaterad för ' + (age<60? age+' s':(Math.round(age/60)+' min')) + ' sedan';
-    } else {
-      dot.className='dot';
-      var d=new Date(epoch*1000);
-      f.textContent = 'Ögonblicksbild — ' + d.toLocaleString('sv-SE',{dateStyle:'short',timeStyle:'short'});
+    if(!epoch){ dot.className='dot'; dot.style.background=''; f.textContent='okänd'; return; }
+    var now=Date.now()/1000;
+    var age=Math.max(0, Math.floor(now - epoch));
+    var fbAge = window._lastFbTs ? (now - window._lastFbTs) : 1e9;   // sek sedan Firebase-strömmen senast levererade
+    var snap=function(){ return new Date(epoch*1000).toLocaleString('sv-SE',{dateStyle:'short',timeStyle:'short'}); };
+    if(fbAge < 12){                                   // GRÖN: Firebase-strömmen flödar → live
+      dot.className='dot live'; dot.style.background='';
+      f.textContent='Livestream';
+    } else if(age >= 90){                              // RÖD: ingen färsk data på 90s → localservern är av
+      dot.className='dot'; dot.style.background='#ef4444';
+      f.textContent='Server offline, senaste ögonblicksbild: '+snap();
+    } else {                                           // GUL: Firebase tyst men GitHub-fallback har (nyligen) data
+      dot.className='dot'; dot.style.background='#f0a020';
+      f.textContent='GitHub-källa';
     }
   }
   setInterval(function(){ try{ freshness(); }catch(e){} }, 1000);   // räkna upp åldern mellan strömtickarna → man ser exakt hur färsk den är + att den lever (0→1→0…)
@@ -513,13 +518,21 @@
     // 1s-LIVE-SVANS på 10m/1h: lägg värde-strömmens färska punkter (kr → %) EFTER sista server-punkten →
     // betydligt fler datapunkter den senaste stunden än value_logs 10s. %:en ankras vid sista server-%:en
     // (partnervärdets %-rörelse = portföljens). Tom serie/annan vy → oförändrat (server-datan).
-    if((per==='10m'||per==='1h') && window._shareLiveSeries && window._shareLiveSeries.length>=2 && pts.length>=1){
-      var _ls=window._shareLiveSeries, _lp=pts[pts.length-1], _refEq=null;
-      for(var _li=_ls.length-1;_li>=0;_li--){ if(_ls[_li].t<=_lp.t){ _refEq=_ls[_li].eq; break; } }
-      if(_refEq==null) _refEq=_ls[0].eq;
-      if(_refEq>0){ var _tail=[];
-        for(var _lj=0;_lj<_ls.length;_lj++){ if(_ls[_lj].t> _lp.t && _ls[_lj].eq>0) _tail.push({t:_ls[_lj].t, p:_lp.p + (_ls[_lj].eq/_refEq - 1)*100}); }
-        if(_tail.length) pts=pts.concat(_tail);
+    if((per==='10m'||per==='1h') && window._shareLiveSeries && window._shareLiveSeries.length>=2 && pts.length>=2){
+      var _ls=window._shareLiveSeries;
+      var _wcut=Math.floor(Date.now()/1000) - (per==='10m'?600:3600);   // vyns fönster
+      var _lw=_ls.filter(function(o){ return o && o.t>=_wcut && o.eq>0; });   // 1s-punkter i fönstret
+      if(_lw.length>=2){
+        // ANKRA vid live-seriens START (stabilt) — INTE sista server-punkten (som krympte svansen vid varje
+        // publicering). Behåll server-punkter FÖRE live-starten (10s) + rita resten ur 1s-serien → konsekvent
+        // hög upplösning där strömmen täcker, ingen upplösnings-flip vid ny publicering.
+        var _ls0t=_lw[0].t, _refEq=_lw[0].eq, _refP=null, _bd=Infinity;
+        for(var _si=0;_si<pts.length;_si++){ var _dd=Math.abs(pts[_si].t-_ls0t); if(_dd<_bd){ _bd=_dd; _refP=pts[_si]; } }
+        if(_refP && _refEq>0){
+          var _keep=pts.filter(function(o){ return o.t < _ls0t; });
+          var _live=_lw.map(function(o){ return {t:o.t, p:_refP.p + (o.eq/_refEq - 1)*100}; });
+          pts=_keep.concat(_live);
+        }
       }
     }
     // Spik-spärr (rullande median) — städa ev. glitch i den inbäddade datan så sidan
@@ -808,7 +821,12 @@
           if(_dataBase==null){ var p=u.indexOf('/d/'); _dataBase=(u.indexOf('raw.githubusercontent.com')>=0 && p>=0)?u.slice(0,p+1):''; }
           txt=txt.trim(); return K ? decryptBlob(txt) : JSON.parse(txt);
         })
-        .then(render)
+        .then(function(d){
+          // GitHub är FALLBACK: skriv inte över live-datan när Firebase nyligen levererat (annars skulle
+          // 120s-pollen ersätta strömmen med äldre GitHub-data + flippa freshness). Rendera bara om FB är tyst.
+          if(_fbdb && window._lastFbTs && (Date.now()/1000 - window._lastFbTs) < 15) return;
+          render(d);
+        })
         .catch(function(){ tryNext(); });
     })();
   }
@@ -819,6 +837,7 @@
     try { _fbdb.ref('share/'+T).on('value', function(snap){
       var v = snap.val(); if(!v) return; var txt = (typeof v==='string') ? v : (v.blob||'');
       if(!txt) return; txt = String(txt).trim();
+      window._lastFbTs = Date.now()/1000;   // Firebase levererade → freshness = Livestream
       Promise.resolve().then(function(){ return K ? decryptBlob(txt) : JSON.parse(txt); })
         .then(render).catch(function(){});
     }); } catch(e){}
@@ -827,6 +846,7 @@
     try { _fbdb.ref('live/'+T).on('value', function(snap){
       var v = snap.val(); if(!v) return; var txt = (typeof v==='string') ? v : (v.blob||'');
       if(!txt) return; txt = String(txt).trim();
+      window._lastFbTs = Date.now()/1000;   // Firebase-strömmen levererade → freshness = Livestream
       Promise.resolve().then(function(){ return K ? decryptBlob(txt) : JSON.parse(txt); })
         .then(function(d){
           if(window._shareLast){ if(window._shareLast.chart && !d.chart) d.chart = window._shareLast.chart; if(window._shareLast.spy && !d.spy) d.spy = window._shareLast.spy; }
