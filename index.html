@@ -375,7 +375,7 @@
     if(window._shareSpyOn===undefined){ try{ window._shareSpyOn = localStorage.getItem('share_spy_on')==='1'; }catch(e){ window._shareSpyOn=false; } }
     window._shareEquity = (typeof d.equity_sek==='number') ? d.equity_sek : null;
     if(!window._sharePeriod){ var _sp=null; try{ _sp=localStorage.getItem('share_period'); }catch(e){}
-      window._sharePeriod = (['1h','today','1d','7d','1m','ytd','y','all'].indexOf(_sp)>=0) ? _sp : 'today'; }
+      window._sharePeriod = (['10m','1h','today','1d','7d','1m','ytd','y','all'].indexOf(_sp)>=0) ? _sp : 'today'; }
     var hasChart = Object.keys(window._shareChart).some(function(k){ return (window._shareChart[k]||[]).length>=2; });
     if(hasChart){
       c += '<div class="sec">Portföljens utveckling <span id="chDelta" class="chdelta"></span></div>'
@@ -474,7 +474,7 @@
     freshness(d.updated_epoch);
   }
 
-  function chPeriodLabel(p){ return {'1h':'senaste timmen',today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
+  function chPeriodLabel(p){ return {'10m':'senaste 10 min','1h':'senaste timmen',today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
   function shareSetPeriod(p){ window._sharePeriod=p; try{ localStorage.setItem('share_period', p); }catch(e){} shareRenderChart(); }
   function shareToggleSpy(on){ window._shareSpyOn=!!on; try{ localStorage.setItem('share_spy_on', on?'1':'0'); }catch(e){} shareRenderChart(); }
   // Rekonstruera partnerns kr-värde per punkt: förankrat på NUVARANDE eget kapital (sista punkten)
@@ -499,7 +499,7 @@
   function shareRenderChart(){
     var tog=document.getElementById('chTog'); if(!tog) return;   // ingen graf på denna sida
     var chart=window._shareChart||{}, per=window._sharePeriod||'today';
-    var PERIODS=[['1h','1H'],['today','Idag'],['1d','1D'],['7d','7D'],['1m','1M'],['ytd','YTD'],['y','1Y'],['all','Allt']];
+    var PERIODS=[['10m','10m'],['1h','1H'],['today','Idag'],['1d','1D'],['7d','7D'],['1m','1M'],['ytd','YTD'],['y','1Y'],['all','Allt']];
     var spyHas = Object.keys(window._shareSpy||{}).some(function(k){ return (window._shareSpy[k]||[]).length>=2; });
     tog.innerHTML = PERIODS.map(function(kv){
       return '<button class="chbtn'+(kv[0]===per?' on':'')+'" onclick="shareSetPeriod(\''+kv[0]+'\')">'+kv[1]+'</button>';
@@ -508,7 +508,7 @@
     // Spik-spärr (rullande median) — städa ev. glitch i den inbäddade datan så sidan
     // SJÄLVLÄKER vid ritning, även om den publicerade serien har en gammal spik. Bara
     // intradag-vyer (1M/YTD/1Å = dygnsvärden där en volatil dag är äkta).
-    if((per==='1h'||per==='today'||per==='1d'||per==='7d') && pts.length>=5){
+    if((per==='10m'||per==='1h'||per==='today'||per==='1d'||per==='7d') && pts.length>=5){
       var _pv=pts.map(function(o){ return o.p; }), _N=_pv.length, _W=4;
       pts=pts.filter(function(o,i){
         var p=o.p, a=(i>0)?_pv[i-1]:null, b=(i<_N-1)?_pv[i+1]:null;
@@ -525,7 +525,7 @@
         wrap=document.getElementById('chWrap'), delta=document.getElementById('chDelta');
     if(pts.length<2){ wrap.innerHTML='<div class="chmsg">Ingen data för "'+chPeriodLabel(per)+'" än.</div>';
       hi.textContent=''; lo.textContent=''; if(delta) delta.textContent=''; return; }
-    var dayView=(per==='today'||per==='1d'), hourView=(per==='1h'), timeView=dayView||hourView;
+    var dayView=(per==='today'||per==='1d'), hourView=(per==='1h'||per==='10m'), timeView=dayView||hourView;
     var ps=pts.map(function(o){ return o.p; });
     var cur=ps[ps.length-1];
     // IDAG/1D: FÖRANKRA kurvans slutpunkt vid positions-KPI:n (window._shareTodayKpi, = GUI:ts
@@ -727,7 +727,7 @@
   }
   var SV_MON=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
   function shareFmtTime(t,period){ var d=new Date(t*1000), p2=function(n){ return ('0'+n).slice(-2); };
-    if(period==='today'||period==='1d'||period==='1h') return p2(d.getHours())+':'+p2(d.getMinutes());   // endast klockslag
+    if(period==='today'||period==='1d'||period==='1h'||period==='10m') return p2(d.getHours())+':'+p2(d.getMinutes());   // endast klockslag
     if(period==='all') return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());  // YYYY-mm-dd
     return d.getDate()+' '+SV_MON[d.getMonth()]; }                                          // "5 feb"
   function shareCross(e){
