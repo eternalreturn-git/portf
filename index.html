@@ -122,6 +122,8 @@
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 
   function freshness(epoch){
+    if(epoch) window._shareEpoch = epoch;       // ny stämpel från en render → spara den senaste
+    epoch = window._shareEpoch;                 // timern (anropar utan arg) + render använder senaste stämpeln
     var dot=document.getElementById('dot'), f=document.getElementById('fresh');
     if(!epoch){ dot.className='dot'; f.textContent='okänd'; return; }
     var age=Math.max(0, Math.floor(Date.now()/1000 - epoch));
@@ -134,6 +136,7 @@
       f.textContent = 'Ögonblicksbild — ' + d.toLocaleString('sv-SE',{dateStyle:'short',timeStyle:'short'});
     }
   }
+  setInterval(function(){ try{ freshness(); }catch(e){} }, 1000);   // räkna upp åldern mellan strömtickarna → man ser exakt hur färsk den är + att den lever (0→1→0…)
 
   function byVal(a,b){ return (b.value_sek||0)-(a.value_sek||0); }
   function plkr(v){ return (v==null)?'—':((v>=0?'+':'−')+Math.round(Math.abs(v)).toLocaleString('sv-SE')); }
