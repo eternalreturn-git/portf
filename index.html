@@ -807,7 +807,7 @@
       var v = snap.val(); if(!v) return; var txt = (typeof v==='string') ? v : (v.blob||'');
       if(!txt) return; txt = String(txt).trim();
       Promise.resolve().then(function(){ return K ? decryptBlob(txt) : JSON.parse(txt); })
-        .then(function(d){ if(window._shareLast && window._shareLast.chart && !d.chart) d.chart = window._shareLast.chart; render(d); })
+        .then(function(d){ if(window._shareLast){ if(window._shareLast.chart && !d.chart) d.chart = window._shareLast.chart; if(window._shareLast.spy && !d.spy) d.spy = window._shareLast.spy; } render(d); })
         .catch(function(){});
     }); } catch(e){}
   }
