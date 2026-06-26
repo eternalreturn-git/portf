@@ -96,10 +96,17 @@
   </header>
   <div id="content"><div class="msg" id="msg">Laddar…</div></div>
 </div>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 <script>
   var T = new URLSearchParams(location.search).get('t');
   var K = new URLSearchParams(location.hash.slice(1)).get('k');   // nyckel, ej till servern
   var SHARE_REPO = 'eternalreturn-git/portf';     // ägare/namn → datan hämtas via raw.githubusercontent (förbi Pages-bygget)
+  // FIREBASE realtidskanal: prenumerera på datan (push, sub-sekund) i st.f. raw:s ~5-min-cache. GitHub kvar
+  // som fallback. Web-config är publik (säkerheten ligger i RTDB-reglerna + att blobben är krypterad).
+  var FB_CONFIG = {"apiKey": "AIzaSyBeRcYKniWFYjRn6tM2O6MoiBSh_kUKwW0", "authDomain": "eternalreturns.firebaseapp.com", "databaseURL": "https://eternalreturns-default-rtdb.europe-west1.firebasedatabase.app", "projectId": "eternalreturns", "storageBucket": "eternalreturns.firebasestorage.app", "messagingSenderId": "861303770274", "appId": "1:861303770274:web:26643afc14a3445123dbfb"};
+  var _fbdb = null;
+  try { if(window.firebase && FB_CONFIG && FB_CONFIG.databaseURL){ firebase.initializeApp(FB_CONFIG); _fbdb = firebase.database(); } } catch(e){ _fbdb = null; }
   function msg(t){ var m=document.getElementById('msg'); if(m) m.textContent=t; }
   function b64ToBytes(b64){ var bin=atob(b64); var u=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
   function b64uToBytes(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return b64ToBytes(s); }
@@ -145,6 +152,10 @@
   async function ctlSend(cmd){
     cmd.id=ctlRid(); cmd.ts=Date.now();
     cmd.sig=await ctlHmac([cmd.id, cmd.action, (cmd.conId!=null?cmd.conId:''), (cmd.key!=null?cmd.key:''), cmd.ts].join('|'));
+    // FIREBASE realtid: servern PRENUMERERAR på cmd/commands → kör kommandot inom sub-sekund. HMAC-signaturen
+    // skyddar mot förfalskning oavsett transport. GitHub nedan = fallback om Firebase saknas/strular.
+    var fbOk=false;
+    if(_fbdb){ try{ await _fbdb.ref('cmd/commands').set({cmds:[cmd], ts:cmd.ts}); fbOk=true; }catch(e){} }
     var api='https://api.github.com/repos/'+REPO+'/contents/cmd/commands.json';
     // GitHub:s Contents-API kan servera en GAMMAL sha (eventual consistency, trots cache-bust) → PUT ger
     // 409 "is at X but expected Y". Hämta då om sha + försök igen (samma mönster som serversidan,
@@ -161,20 +172,28 @@
       if(p.status===200||p.status===201) return cmd.id;
       var et=await p.text(); lastErr='skrivfel '+p.status+' '+et.slice(0,80);
       if(p.status===409 || p.status===422){ await ctlSleep(500+attempt*400); continue; }   // sha-race → hämta om + igen
+      if(fbOk) return cmd.id;                                                                // Firebase tog emot → GitHub-fel spelar ingen roll
       throw new Error(lastErr);                                                              // 401/403/etc → ge upp
     }
+    if(fbOk) return cmd.id;
     throw new Error(lastErr+' (gav upp efter omförsök)');
   }
   function ctlSleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
   // Vänta på serverns ack.json (skrivs NÄR kommandot körts). Returnerar ack-objektet {ok,msg} eller
   // null om inget kom inom ~42 s. Visar löpande räknare så man ser ATT det jobbar (inte hängt).
   async function ctlWaitAck(id, label){
-    for(var i=0;i<14;i++){ await ctlSleep(3000);
-      ctlSetMsg('<span style="color:var(--dim)">'+(label||'Kommando')+': väntar på servern… '+((i+1)*3)+' s (pollar repot var 20:e sek)</span>');
-      try{ var g=await fetch('https://api.github.com/repos/'+REPO+'/contents/cmd/ack.json?cb='+Date.now(),{headers:ctlHeaders(),cache:'no-store'});
-        if(g.status===200){ var j=await g.json(); var dec=JSON.parse(decodeURIComponent(escape(atob((j.content||'').replace(/\n/g,''))))); var a=(dec.acks||[]).filter(function(x){return x.id===id;})[0];
-          if(a) return a; }
-      }catch(e){}
+    // FIREBASE: läs cmd/ack i realtid var 1:e s (servern skriver direkt efter körning). Fallback: GitHub var 3:e s.
+    var n=_fbdb?45:14, step=_fbdb?1000:3000;
+    for(var i=0;i<n;i++){ await ctlSleep(step);
+      ctlSetMsg('<span style="color:var(--dim)">'+(label||'Kommando')+': väntar på servern… '+Math.round((i+1)*step/1000)+' s'+(_fbdb?' (realtid)':' (pollar repot var 20:e sek)')+'</span>');
+      if(_fbdb){
+        try{ var s=await _fbdb.ref('cmd/ack').once('value'); var v=s.val(); if(v&&v.acks){ var a=v.acks.filter(function(x){return x.id===id;})[0]; if(a) return a; } }catch(e){}
+      } else {
+        try{ var g=await fetch('https://api.github.com/repos/'+REPO+'/contents/cmd/ack.json?cb='+Date.now(),{headers:ctlHeaders(),cache:'no-store'});
+          if(g.status===200){ var j=await g.json(); var dec=JSON.parse(decodeURIComponent(escape(atob((j.content||'').replace(/\n/g,''))))); var a=(dec.acks||[]).filter(function(x){return x.id===id;})[0];
+            if(a) return a; }
+        }catch(e){}
+      }
     }
     return null;
   }
@@ -770,7 +789,18 @@
     })();
   }
   load();
-  setInterval(load, 30000);
+  // FIREBASE realtid: prenumerera på datan → render PUSHAS direkt vid varje server-skrivning (sub-sekund),
+  // utan raw:s cache. GitHub-load() ovan ger första paint + fallback om Firebase saknas/strular.
+  if(_fbdb && T){
+    try { _fbdb.ref('share/'+T).on('value', function(snap){
+      var v = snap.val(); if(!v) return; var txt = (typeof v==='string') ? v : (v.blob||'');
+      if(!txt) return; txt = String(txt).trim();
+      Promise.resolve().then(function(){ return K ? decryptBlob(txt) : JSON.parse(txt); })
+        .then(render).catch(function(){});
+    }); } catch(e){}
+  }
+  // Polla GitHub mer sällan när Firebase är på (bara som fallback om realtidskanalen tystnar).
+  setInterval(load, _fbdb ? 120000 : 30000);
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) load(); });
 </script>
 </body>
