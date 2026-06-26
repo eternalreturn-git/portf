@@ -508,6 +508,18 @@
       return '<button class="chbtn'+(kv[0]===per?' on':'')+'" onclick="shareSetPeriod(\''+kv[0]+'\')">'+kv[1]+'</button>';
     }).join('') + (spyHas ? '<label style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:.78rem;color:var(--text);cursor:pointer;white-space:nowrap"><span class="tgl"><input type="checkbox" '+(window._shareSpyOn?'checked':'')+' onchange="shareToggleSpy(this.checked)"><span class="sl"></span></span>SPY <span id="spyVal" style="font-family:var(--mono);display:inline-block;width:56px;text-align:left"></span></label>' : '');
     var key=(per==='1d')?'today':per, pts=chart[key]||[];
+    // 1s-LIVE-SVANS på 10m/1h: lägg värde-strömmens färska punkter (kr → %) EFTER sista server-punkten →
+    // betydligt fler datapunkter den senaste stunden än value_logs 10s. %:en ankras vid sista server-%:en
+    // (partnervärdets %-rörelse = portföljens). Tom serie/annan vy → oförändrat (server-datan).
+    if((per==='10m'||per==='1h') && window._shareLiveSeries && window._shareLiveSeries.length>=2 && pts.length>=1){
+      var _ls=window._shareLiveSeries, _lp=pts[pts.length-1], _refEq=null;
+      for(var _li=_ls.length-1;_li>=0;_li--){ if(_ls[_li].t<=_lp.t){ _refEq=_ls[_li].eq; break; } }
+      if(_refEq==null) _refEq=_ls[0].eq;
+      if(_refEq>0){ var _tail=[];
+        for(var _lj=0;_lj<_ls.length;_lj++){ if(_ls[_lj].t> _lp.t && _ls[_lj].eq>0) _tail.push({t:_ls[_lj].t, p:_lp.p + (_ls[_lj].eq/_refEq - 1)*100}); }
+        if(_tail.length) pts=pts.concat(_tail);
+      }
+    }
     // Spik-spärr (rullande median) — städa ev. glitch i den inbäddade datan så sidan
     // SJÄLVLÄKER vid ritning, även om den publicerade serien har en gammal spik. Bara
     // intradag-vyer (1M/YTD/1Å = dygnsvärden där en volatil dag är äkta).
@@ -814,7 +826,13 @@
       var v = snap.val(); if(!v) return; var txt = (typeof v==='string') ? v : (v.blob||'');
       if(!txt) return; txt = String(txt).trim();
       Promise.resolve().then(function(){ return K ? decryptBlob(txt) : JSON.parse(txt); })
-        .then(function(d){ if(window._shareLast){ if(window._shareLast.chart && !d.chart) d.chart = window._shareLast.chart; if(window._shareLast.spy && !d.spy) d.spy = window._shareLast.spy; } render(d); })
+        .then(function(d){
+          if(window._shareLast){ if(window._shareLast.chart && !d.chart) d.chart = window._shareLast.chart; if(window._shareLast.spy && !d.spy) d.spy = window._shareLast.spy; }
+          // 1s-LIVE-SERIE: spara värdet (kr) → 10m/1h-grafen kan rita en 1s-svans (mer datapunkter än value_logs 10s).
+          if(d && d.equity_sek!=null){ var _ls=(window._shareLiveSeries||(window._shareLiveSeries=[])); var _nt=Math.floor(Date.now()/1000);
+            if(!_ls.length || _nt> _ls[_ls.length-1].t){ _ls.push({t:_nt, eq:+d.equity_sek}); if(_ls.length>900) _ls.splice(0,_ls.length-900); } }
+          render(d);
+        })
         .catch(function(){});
     }); } catch(e){}
   }
