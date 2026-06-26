@@ -512,15 +512,19 @@
     // SJÄLVLÄKER vid ritning, även om den publicerade serien har en gammal spik. Bara
     // intradag-vyer (1M/YTD/1Å = dygnsvärden där en volatil dag är äkta).
     if((per==='10m'||per==='1h'||per==='today'||per==='1d'||per==='7d') && pts.length>=5){
+      // TIGHTARE på de FINA intradag-vyerna (10m/1h/Idag/1D): en diversifierad portfölj rör sig inte ~0,5%
+      // på ETT 10s-prov, så en sådan avvikelse som återvänder = glitch (t.ex. uppvärmnings-dipp vid omstart,
+      // även 2-punkts). 7D är nedsamplat (äkta större dygns-/timsteg) → behåll bredare tröskel.
+      var _vThr=(per==='7d')?0.7:0.45, _mThr=(per==='7d')?0.9:0.5;
       var _pv=pts.map(function(o){ return o.p; }), _N=_pv.length, _W=4;
       pts=pts.filter(function(o,i){
         var p=o.p, a=(i>0)?_pv[i-1]:null, b=(i<_N-1)?_pv[i+1]:null;
         if(a!=null && b!=null){     // (a) skarp V mot båda grannar (procentenheter)
           var da=p-a, db=p-b;
-          if((da<-0.7&&db<-0.7)||(da>0.7&&db>0.7)) return false;
+          if((da<-_vThr&&db<-_vThr)||(da>_vThr&&db>_vThr)) return false;
         }
         var win=_pv.slice(Math.max(0,i-_W),Math.min(_N,i+_W+1)).slice().sort(function(x,y){ return x-y; });
-        if(win.length>=5){ var med=win[Math.floor(win.length/2)]; if(Math.abs(p-med)>0.9) return false; }  // (b) lokal median
+        if(win.length>=5){ var med=win[Math.floor(win.length/2)]; if(Math.abs(p-med)>_mThr) return false; }  // (b) lokal median + 2-punkts-dipp
         return true;
       });
     }
