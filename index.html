@@ -798,6 +798,15 @@
       Promise.resolve().then(function(){ return K ? decryptBlob(txt) : JSON.parse(txt); })
         .then(render).catch(function(){});
     }); } catch(e){}
+    // VÄRDE-STRÖM (~2s): bara värde + dagsutveckling, ingen graf → behåll senaste grafen + full-rendera.
+    // Håller huvudsiffran OCH freshness-stämpeln färska mellan de tunga hel-publiceringarna.
+    try { _fbdb.ref('live/'+T).on('value', function(snap){
+      var v = snap.val(); if(!v) return; var txt = (typeof v==='string') ? v : (v.blob||'');
+      if(!txt) return; txt = String(txt).trim();
+      Promise.resolve().then(function(){ return K ? decryptBlob(txt) : JSON.parse(txt); })
+        .then(function(d){ if(window._shareLast && window._shareLast.chart && !d.chart) d.chart = window._shareLast.chart; render(d); })
+        .catch(function(){});
+    }); } catch(e){}
   }
   // Polla GitHub mer sällan när Firebase är på (bara som fallback om realtidskanalen tystnar).
   setInterval(load, _fbdb ? 120000 : 30000);
