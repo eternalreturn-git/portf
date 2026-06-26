@@ -101,6 +101,8 @@
 <script>
   var T = new URLSearchParams(location.search).get('t');
   var K = new URLSearchParams(location.hash.slice(1)).get('k');   // nyckel, ej till servern
+  // 1s-LIVE-SERIE överlever omladdning (localStorage, per token): återställ senaste ~1h, filtrera bort gammalt.
+  try { if(T){ var _rs=JSON.parse(localStorage.getItem('share_live_'+T)||'[]'); if(Array.isArray(_rs)){ var _rc=Math.floor(Date.now()/1000)-3700; window._shareLiveSeries=_rs.filter(function(o){ return o && o.t>=_rc && o.eq>0; }); } } } catch(e){}
   var SHARE_REPO = 'eternalreturn-git/portf';     // ägare/namn → datan hämtas via raw.githubusercontent (förbi Pages-bygget)
   // FIREBASE realtidskanal: prenumerera på datan (push, sub-sekund) i st.f. raw:s ~5-min-cache. GitHub kvar
   // som fallback. Web-config är publik (säkerheten ligger i RTDB-reglerna + att blobben är krypterad).
@@ -830,7 +832,9 @@
           if(window._shareLast){ if(window._shareLast.chart && !d.chart) d.chart = window._shareLast.chart; if(window._shareLast.spy && !d.spy) d.spy = window._shareLast.spy; }
           // 1s-LIVE-SERIE: spara värdet (kr) → 10m/1h-grafen kan rita en 1s-svans (mer datapunkter än value_logs 10s).
           if(d && d.equity_sek!=null){ var _ls=(window._shareLiveSeries||(window._shareLiveSeries=[])); var _nt=Math.floor(Date.now()/1000);
-            if(!_ls.length || _nt> _ls[_ls.length-1].t){ _ls.push({t:_nt, eq:+d.equity_sek}); if(_ls.length>900) _ls.splice(0,_ls.length-900); } }
+            if(!_ls.length || _nt> _ls[_ls.length-1].t){ _ls.push({t:_nt, eq:+d.equity_sek}); if(_ls.length>900) _ls.splice(0,_ls.length-900);
+              // Spara (strypt ~3s) → överlever omladdning. ~900 punkter × ~20 B ≈ 18 kB, billigt.
+              if(T && (!window._shareLiveSaveTs || _nt-window._shareLiveSaveTs>=3)){ window._shareLiveSaveTs=_nt; try{ localStorage.setItem('share_live_'+T, JSON.stringify(_ls)); }catch(e){} } } }
           render(d);
         })
         .catch(function(){});
