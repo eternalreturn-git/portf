@@ -552,7 +552,7 @@
         var _swNow=Math.floor(Date.now()/1000);
         var _sw0=pts[0].t;
         if(per==='1d'){ var _dd0=new Date(); _dd0.setHours(0,0,0,0); var _mt=Math.floor(_dd0.getTime()/1000); if(_mt>_swNow) _mt-=86400; _sw0=Math.min(_sw0,_mt); }
-        var _sw1=(timeView?Math.max(pts[pts.length-1].t,_swNow):pts[pts.length-1].t)+3600;
+        var _sw1=pts[pts.length-1].t+3600;   // kapa SPY vid sista portföljpunkten (ej NU) → ingen klampad svans/vandring
         var winS=ssrc.filter(function(o){ return o.t>=_sw0 && o.t<=_sw1; });
         if(winS.length>=2){
           var _bI=0; for(var _bj=0;_bj<winS.length;_bj++){ if(winS[_bj].t>=pts[0].t){ _bI=_bj; break; } }
@@ -570,7 +570,7 @@
     function _p2(n){ return (n<10?'0':'')+n; }
     if(timeView){
       if(per==='1d'){ var d0=new Date(); d0.setHours(0,0,0,0); var _t=Math.floor(d0.getTime()/1000); if(_t>Math.floor(Date.now()/1000)) _t-=86400; t0=_t; t1=t0+86400; }
-      else { t0=pts[0].t; t1=Math.max(pts[pts.length-1].t, Math.floor(Date.now()/1000)); }
+      else { t0=pts[0].t; t1=pts[pts.length-1].t; }   // HÖGERKANT = SISTA datapunkten (ej NU) → den vandrar inte vänster mellan tickar (delningssidan har ingen live-svans i kurvan)
       var span=Math.max(1,t1-t0);
       xAt=function(i){ return ((pts[i].t-t0)/span)*W; };
       if(hourView){
