@@ -566,10 +566,13 @@
       }
     }
     // PORTFÖLJENS egna extremer (för Högst/Lägst). Y-skalan vidgas av SPY men etiketterna visar portföljen.
-    var pHiV=Math.max.apply(null,ps.concat(0)), pLoV=Math.min.apply(null,ps.concat(0));
+    // AUTO-FIT: portföljens EGNA min/max (ingen tvingad 0) → kurvan fyller höjden även vid små intradag-
+    // rörelser (förut tvingade ett 0,2%-golv platt). Liten proportionell luft top/botten.
+    var pHiV=Math.max.apply(null,ps), pLoV=Math.min.apply(null,ps);
     var loV=pLoV, hiV=pHiV;
     if(_spyPts){ _spyPts.forEach(function(s){ if(s.p<loV)loV=s.p; if(s.p>hiV)hiV=s.p; }); }
-    if(hiV-loV<0.2){ hiV+=0.1; loV-=0.1; }
+    if(hiV-loV < 0.02){ var _midV=(hiV+loV)/2; hiV=_midV+0.01; loV=_midV-0.01; }   // ~platt → litet fönster (ingen 0-division)
+    else { var _padV=(hiV-loV)*0.12; hiV+=_padV; loV-=_padV; }                     // 12% luft → fyller höjden med marginal
     var W=1000,H=200,padY=14, t0,t1,guides=[], marketLines=[], xAt;
     function _p2(n){ return (n<10?'0':'')+n; }
     if(timeView){
