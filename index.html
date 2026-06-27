@@ -474,12 +474,15 @@
             return '<div class="logln" style="color:'+shareLogColor(l)+'">'+esc(l)+'</div>';
           }).join('') + '</div>';
     }
-    // Bevara "vid botten?"-läget över omritningen (innehållet byggs om var 30:e sek av poll-loopen).
+    // AUTO-SCROLL BORTTAGEN (användarens önskemål): tidigare tvingades loggen till botten
+    // (scrollTop = scrollHeight) vid varje omritning var 30:e sek → "hookade" sidans scroll på
+    // fjärrsidan (drog ned vyn när man läste i nedre delen). Nu BEVARAS din manuella scroll-position
+    // i stället → loggen står still där du lämnat den, inget auto-hopp.
     var _olb = document.getElementById('logbox');
-    var _logAtBottom = !_olb || (_olb.scrollHeight - _olb.scrollTop - _olb.clientHeight < 48);
+    var _logTop = _olb ? _olb.scrollTop : 0;
     document.getElementById('content').innerHTML = c;
     var _nlb = document.getElementById('logbox');
-    if(_nlb && _logAtBottom) _nlb.scrollTop = _nlb.scrollHeight;   // håll pinnad vid senaste raden
+    if(_nlb) _nlb.scrollTop = _logTop;   // behåll där användaren scrollat (ingen auto-scroll)
     shareRenderChart();
     freshness(d.updated_epoch);
   }
