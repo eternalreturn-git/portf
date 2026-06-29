@@ -118,7 +118,7 @@
     var pt=await crypto.subtle.decrypt({name:'AES-GCM', iv:data.slice(0,12)}, key, data.slice(12));
     return JSON.parse(new TextDecoder().decode(pt));
   }
-  function kr(v){ return (v==null)?'—':Math.round(v).toLocaleString('sv-SE')+' kr'; }
+  function kr(v){ return (v==null)?'—':Math.round(v).toLocaleString('sv-SE'); }
   function pct(v,dec){ if(v==null) return '—'; var s=(v>=0?'+':'')+v.toFixed(dec==null?1:dec)+'%'; return s; }
   function cls(v){ return v==null?'':(v>=0?'pos':'neg'); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
