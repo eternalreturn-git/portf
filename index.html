@@ -64,6 +64,13 @@
   .oinfo b{color:var(--text);font-weight:700}
   .onums{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;font-family:var(--mono)}
   .onums .lbl{color:var(--dim);font-family:inherit;font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;margin-right:5px}
+  /* Sorterbara kolumner (aktier) + sorteringsrad (optioner). */
+  th.sortable{cursor:pointer;user-select:none} th.sortable:hover{color:var(--text)} th.sorton{color:#2f6fed}
+  .sortbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-2px 2px 10px}
+  .sortbar .slbl{font-size:.68rem;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;margin-right:2px}
+  .sortbar .schip{appearance:none;-webkit-appearance:none;border:1px solid rgba(120,140,170,.3);background:transparent;
+                  color:#9aa6b2;border-radius:999px;padding:3px 10px;font-size:.7rem;font-weight:600;cursor:pointer;width:auto;margin:0;white-space:nowrap}
+  .sortbar .schip.on{background:#2f6fed;color:#fff;border-color:#2f6fed}
   /* Systemlogg-spegel: stort, lättscrollat fönster (60vh), monospace, färgkodat per rad. */
   .logbox{max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
     background:#0a0d12;border:1px solid var(--border,#1c2530);border-radius:10px;padding:10px 12px;
@@ -378,6 +385,32 @@
     return '<span class="vsw"><button class="vseg'+(st?'':' on')+'" onclick="shareSetVal(\'today\')">Idag</button>'
       + '<button class="vseg'+(st?' on':'')+'" onclick="shareSetVal(\'start\')">Sen start</button></span>';
   }
+  // SORTERING av innehaven. Egen sort-state per lista (aktier/optioner), persistas i localStorage. 'andel'
+  // sorteras på value_sek (proportionellt); ticker/expiry = strängjämförelse; null/tomt hamnar alltid sist.
+  function _shInitSort(k, def){ try{ var v=JSON.parse(localStorage.getItem(k)); if(v&&v.key) return v; }catch(e){} return def; }
+  window._shStkSort = _shInitSort('sh_stk_sort', {key:'value_sek', dir:-1});
+  window._shOptSort = _shInitSort('sh_opt_sort', {key:'value_sek', dir:-1});
+  function shSort(which, key){
+    var s = (which==='opt') ? window._shOptSort : window._shStkSort;
+    if(s.key===key) s.dir = -s.dir; else { s.key=key; s.dir = (key==='ticker'||key==='expiry')?1:-1; }
+    try{ localStorage.setItem(which==='opt'?'sh_opt_sort':'sh_stk_sort', JSON.stringify(s)); }catch(e){}
+    if(window._shareLast) render(window._shareLast);
+  }
+  function _sortHoldings(arr, s){
+    var key=s.key, dir=s.dir||-1, str=(key==='ticker'||key==='expiry'), a=arr.slice();
+    a.sort(function(x,y){
+      var vx=(key==='andel')?x.value_sek:x[key], vy=(key==='andel')?y.value_sek:y[key];
+      var nx=(vx==null||vx===''), ny=(vy==null||vy==='');
+      if(nx&&ny) return 0; if(nx) return 1; if(ny) return -1;          // null/tomt alltid sist
+      if(str) return dir*String(vx).localeCompare(String(vy));
+      return dir*((+vx)-(+vy));
+    });
+    return a;
+  }
+  function _shTh(which, key, label){
+    var s = which==='opt'?window._shOptSort:window._shStkSort, on=s.key===key;
+    return '<th class="sortable'+(on?' sorton':'')+'" onclick="shSort(\''+which+'\',\''+key+'\')">'+label+(on?(s.dir<0?' ▾':' ▴'):'')+'</th>';
+  }
   function render(d){
     window._shareLast = d;                  // senaste payload → styrningen kan flippa knappen optimistiskt
     var _ibrow = document.getElementById('ibrow');
@@ -486,12 +519,15 @@
     c += ctlCardHtml(d);        // FJÄRRSTYRNING (paus + sälj) — bara ägaren med control-länk
 
     var _vt = (window._shareValView==='start');                            // true = "Sen start" (P/L), false = "Idag"
-    var _plH = _vt ? '<th>P/L %</th><th>P/L kr</th>' : '<th>% idag</th><th>kr idag</th>';
+    var _pKey = _vt?'pnl_pct':'chg_pct', _kKey = _vt?'pnl_sek':'chg_sek';
     var _swShown = false;
     if(stocks.length){
       c += '<div class="sec sec-row"><span>Aktier ('+stocks.length+')</span>'+valSwitchHtml()+'</div>'; _swShown=true;
-      c += '<div class="tbl"><table><thead><tr><th>Aktie</th><th>Värde</th><th>Andel</th>'+_plH+'</tr></thead><tbody>';
-      stocks.forEach(function(h){
+      c += '<div class="tbl"><table><thead><tr>'
+         + _shTh('stk','ticker','Aktie') + _shTh('stk','value_sek','Värde') + _shTh('stk','andel','Andel')
+         + _shTh('stk',_pKey,'P/L %') + _shTh('stk',_kKey,'P/L kr')
+         + '</tr></thead><tbody>';
+      _sortHoldings(stocks, window._shStkSort).forEach(function(h){
         var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek;
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span></td>'
            + '<td>'+kr(h.value_sek)+'</td>'
@@ -505,18 +541,24 @@
       // KORT per option: kontraktsinfo (MID·STRIKE·kurs·Slutdatum·dagar kvar) på egen rad ÖVERST, värde/andel/P-L
       // under. Separator mellan varje option. Samma IDAG/SEN START-växel styr P/L-paret som hos aktierna.
       c += '<div class="sec sec-row"><span>Optioner ('+opts.length+')</span>'+(_swShown?'':valSwitchHtml())+'</div>';
-      opts.forEach(function(h){
+      var _oFields = [['ticker','Ticker'],['value_sek','Värde'],['andel','Andel'],['strike','Strike'],
+                      ['kurs','Kurs'],['expiry','Slutdatum'],['dte','Dagar'],[_pKey,'P/L %'],[_kKey,'P/L kr']];
+      c += '<div class="sortbar"><span class="slbl">Sortera:</span>' + _oFields.map(function(k){
+        var on=window._shOptSort.key===k[0];
+        return '<button class="schip'+(on?' on':'')+'" onclick="shSort(\'opt\',\''+k[0]+'\')">'+k[1]+(on?(window._shOptSort.dir<0?' ▾':' ▴'):'')+'</button>';
+      }).join('') + '</div>';
+      _sortHoldings(opts, window._shOptSort).forEach(function(h){
         var r = h.right==='P'?'PUT':(h.right==='C'?'CALL':'');
-        var info = [];
-        if(h.mid!=null) info.push('MID <b>$'+Number(h.mid).toFixed(2)+'</b>');
-        if(h.strike!=null) info.push('STRIKE <b>$'+h.strike+'</b>');
-        if(h.kurs!=null) info.push('kurs <b>$'+Number(h.kurs).toFixed(2)+'</b>');
-        if(h.expiry) info.push('Slutdatum <b>'+fmtDate(h.expiry)+'</b>');
-        if(h.dte!=null) info.push('<b>'+h.dte+'</b> dagar kvar');
-        var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek, _l = _vt?'P/L':'Idag';
+        var info1 = [], info2 = [];
+        if(h.premium!=null) info1.push('Premie <b>$'+Number(h.premium).toFixed(2)+'</b>');
+        if(h.strike!=null) info1.push('STRIKE <b>$'+h.strike+'</b>');
+        if(h.kurs!=null) info1.push('kurs <b>$'+Number(h.kurs).toFixed(2)+'</b>');
+        if(h.expiry) info2.push('Slutdatum <b>'+fmtDate(h.expiry)+'</b>');
+        if(h.dte!=null) info2.push('<b>'+h.dte+'</b> dagar kvar');
+        var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek, _l = 'P/L';
         c += '<div class="ocard">'
            + '<div class="ohead"><span class="tk">'+esc(h.ticker)+'</span>'+(r?'<span class="ty">'+r+'</span>':'')+'</div>'
-           + '<div class="oinfo">'+info.join(' · ')+'</div>'
+           + '<div class="oinfo">'+info1.join(' · ')+(info2.length?'<br>'+info2.join(' · '):'')+'</div>'
            + '<div class="onums">'
            +   '<span><span class="lbl">Värde</span>'+kr(h.value_sek)+'</span>'
            +   '<span><span class="lbl">Andel</span>'+apTxt(h.value_sek)+'</span>'
