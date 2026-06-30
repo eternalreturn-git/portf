@@ -50,6 +50,20 @@
   tbody tr:hover td{background:rgba(255,255,255,.05)}
   .tk{font-weight:700} .ty{font-size:.66rem;color:var(--dim);margin-left:6px}
   .osub{font-size:.66rem;color:var(--dim);font-family:var(--mono);margin-top:2px;white-space:normal;line-height:1.35}
+  /* IDAG / SEN START-växel (höger om sektionsrubriken) → byter de två P/L-kolumnerna så allt får plats utan scroll. */
+  .sec-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .vsw{display:inline-flex;border:1px solid rgba(120,140,170,.4);border-radius:999px;overflow:hidden;flex:none}
+  .vsw .vseg{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:#9aa6b2;font-size:.68rem;
+             font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 11px;cursor:pointer;white-space:nowrap;width:auto;margin:0}
+  .vsw .vseg.on{background:#2f6fed;color:#fff}
+  /* Optionskort: kontraktsinfo (MID·STRIKE·kurs·Slutdatum·dagar) på egen rad ÖVERST, värde/andel/P-L under. */
+  .ocard{padding:10px 2px;border-bottom:1px solid var(--border)}
+  .ocard:last-child{border-bottom:none}
+  .ohead{display:flex;align-items:baseline;gap:7px;margin-bottom:4px}
+  .oinfo{font-size:.72rem;color:var(--dim);font-family:var(--mono);line-height:1.45;margin-bottom:6px;white-space:normal}
+  .oinfo b{color:var(--text);font-weight:700}
+  .onums{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.82rem;font-family:var(--mono)}
+  .onums .lbl{color:var(--dim);font-family:inherit;font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;margin-right:5px}
   /* Systemlogg-spegel: stort, lättscrollat fönster (60vh), monospace, färgkodat per rad. */
   .logbox{max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
     background:#0a0d12;border:1px solid var(--border,#1c2530);border-radius:10px;padding:10px 12px;
@@ -356,6 +370,14 @@
     if(/Signal mottagen|Signature detected|LLM (redo|omladdad|AKTIV|aktiv|pinnad)|Bridge-tillägg AKTIVT|Bridge.*AKTIV|Server startad/.test(l)) return '#ff6fc7';
     return '#8a8f9f';
   }
+  // IDAG / SEN START-växel: 'today' visar dagens %/kr, 'start' visar P/L sedan köp. Styr BÅDE aktier och optioner.
+  window._shareValView = (function(){ try{ return localStorage.getItem('share_val_view')==='start' ? 'start' : 'today'; }catch(e){ return 'today'; } })();
+  function shareSetVal(v){ window._shareValView = (v==='start'?'start':'today'); try{ localStorage.setItem('share_val_view', window._shareValView); }catch(e){} if(window._shareLast) render(window._shareLast); }
+  function valSwitchHtml(){
+    var st = window._shareValView==='start';
+    return '<span class="vsw"><button class="vseg'+(st?'':' on')+'" onclick="shareSetVal(\'today\')">Idag</button>'
+      + '<button class="vseg'+(st?' on':'')+'" onclick="shareSetVal(\'start\')">Sen start</button></span>';
+  }
   function render(d){
     window._shareLast = d;                  // senaste payload → styrningen kan flippa knappen optimistiskt
     var _ibrow = document.getElementById('ibrow');
@@ -463,42 +485,45 @@
 
     c += ctlCardHtml(d);        // FJÄRRSTYRNING (paus + sälj) — bara ägaren med control-länk
 
+    var _vt = (window._shareValView==='start');                            // true = "Sen start" (P/L), false = "Idag"
+    var _plH = _vt ? '<th>P/L %</th><th>P/L kr</th>' : '<th>% idag</th><th>kr idag</th>';
+    var _swShown = false;
     if(stocks.length){
-      c += '<div class="sec">Aktier ('+stocks.length+')</div>';
-      c += '<div class="tbl"><table><thead><tr><th>Aktie</th><th>Värde</th><th>Andel</th><th>% idag</th><th>kr idag</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
+      c += '<div class="sec sec-row"><span>Aktier ('+stocks.length+')</span>'+valSwitchHtml()+'</div>'; _swShown=true;
+      c += '<div class="tbl"><table><thead><tr><th>Aktie</th><th>Värde</th><th>Andel</th>'+_plH+'</tr></thead><tbody>';
       stocks.forEach(function(h){
+        var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek;
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span></td>'
            + '<td>'+kr(h.value_sek)+'</td>'
            + '<td>'+apTxt(h.value_sek)+'</td>'
-           + '<td class="'+cls(h.chg_pct)+'">'+pct(h.chg_pct)+'</td>'
-           + '<td class="'+cls(h.chg_sek)+'">'+plkr(h.chg_sek)+'</td>'
-           + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
-           + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td></tr>';
+           + '<td class="'+cls(_p)+'">'+pct(_p)+'</td>'
+           + '<td class="'+cls(_k)+'">'+plkr(_k)+'</td></tr>';
       });
       c += '</tbody></table></div>';
     }
     if(opts.length){
-      // Kompakt: kontraktsdetaljerna (strike · slutdatum · dgr · kurs) ligger som
-      // underrad i första kolumnen → bara 5 kolumner = får plats i sidled på mobil.
-      c += '<div class="sec">Optioner ('+opts.length+')</div>';
-      c += '<div class="tbl"><table><thead><tr><th>Option</th><th>Värde</th><th>Andel</th><th>% idag</th><th>kr idag</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
+      // KORT per option: kontraktsinfo (MID·STRIKE·kurs·Slutdatum·dagar kvar) på egen rad ÖVERST, värde/andel/P-L
+      // under. Separator mellan varje option. Samma IDAG/SEN START-växel styr P/L-paret som hos aktierna.
+      c += '<div class="sec sec-row"><span>Optioner ('+opts.length+')</span>'+(_swShown?'':valSwitchHtml())+'</div>';
       opts.forEach(function(h){
         var r = h.right==='P'?'PUT':(h.right==='C'?'CALL':'');
-        var sub = [];
-        if(h.strike!=null) sub.push('strike $'+h.strike);
-        if(h.kurs!=null) sub.push('kurs $'+Number(h.kurs).toFixed(2));
-        if(h.expiry) sub.push(fmtDate(h.expiry));
-        if(h.dte!=null) sub.push(h.dte+' dgr');
-        c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span>'+(r?'<span class="ty">'+r+'</span>':'')
-           + '<div class="osub">'+sub.join(' · ')+'</div></td>'
-           + '<td>'+kr(h.value_sek)+'</td>'
-           + '<td>'+apTxt(h.value_sek)+'</td>'
-           + '<td class="'+cls(h.chg_pct)+'">'+pct(h.chg_pct)+'</td>'
-           + '<td class="'+cls(h.chg_sek)+'">'+plkr(h.chg_sek)+'</td>'
-           + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
-           + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td></tr>';
+        var info = [];
+        if(h.mid!=null) info.push('MID <b>$'+Number(h.mid).toFixed(2)+'</b>');
+        if(h.strike!=null) info.push('STRIKE <b>$'+h.strike+'</b>');
+        if(h.kurs!=null) info.push('kurs <b>$'+Number(h.kurs).toFixed(2)+'</b>');
+        if(h.expiry) info.push('Slutdatum <b>'+fmtDate(h.expiry)+'</b>');
+        if(h.dte!=null) info.push('<b>'+h.dte+'</b> dagar kvar');
+        var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek, _l = _vt?'P/L':'Idag';
+        c += '<div class="ocard">'
+           + '<div class="ohead"><span class="tk">'+esc(h.ticker)+'</span>'+(r?'<span class="ty">'+r+'</span>':'')+'</div>'
+           + '<div class="oinfo">'+info.join(' · ')+'</div>'
+           + '<div class="onums">'
+           +   '<span><span class="lbl">Värde</span>'+kr(h.value_sek)+'</span>'
+           +   '<span><span class="lbl">Andel</span>'+apTxt(h.value_sek)+'</span>'
+           +   '<span><span class="lbl">'+_l+' %</span><b class="'+cls(_p)+'">'+pct(_p)+'</b></span>'
+           +   '<span><span class="lbl">'+_l+' kr</span><b class="'+cls(_k)+'">'+plkr(_k)+'</b></span>'
+           + '</div></div>';
       });
-      c += '</tbody></table></div>';
     }
     // Saldo (kontanter) som egen sektion → summan av alla andelar = 100 %.
     c += '<div class="sec">Saldo</div>';
@@ -518,10 +543,17 @@
     // i stället → loggen står still där du lämnat den, inget auto-hopp.
     var _olb = document.getElementById('logbox');
     var _logTop = _olb ? _olb.scrollTop : 0;
+    // BEVARA tabellernas HORISONTELLA scroll (innehaven är bredare än skärmen → man scrollar höger för P/L). Hel-
+    // omritningen bygger om tabellerna → scrollLeft skulle nollställas (hoppa tillbaka till vänster). Spara per
+    // tabell-index och återställ efter omritningen → tabellen står kvar där du scrollat.
+    var _oTbl = document.querySelectorAll('#content .tbl');
+    var _tblSL = []; for(var _i=0;_i<_oTbl.length;_i++) _tblSL[_i] = _oTbl[_i].scrollLeft;
     document.getElementById('content').innerHTML = c;   // fönstrets scroll bevaras av WEBBLÄSAREN (scroll-container
                                                         // = window) → INGEN scrollTo → inget stutter, ingen auto-scroll
     var _nlb = document.getElementById('logbox');
     if(_nlb) _nlb.scrollTop = _logTop;   // behåll loggrutans EGNA (inre) scroll — rör aldrig sidan
+    var _nTbl = document.querySelectorAll('#content .tbl');
+    for(var _j=0;_j<_nTbl.length;_j++) if(_tblSL[_j]) _nTbl[_j].scrollLeft = _tblSL[_j];   // återställ horisontell scroll
     shareRenderChart();
     freshness(d.updated_epoch);
     window._shareRendered = true;          // efter första renderingen får senare omritningar hoppas vid scroll
