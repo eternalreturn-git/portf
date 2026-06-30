@@ -335,6 +335,10 @@
   }
   function render(d){
     window._shareLast = d;                  // senaste payload → styrningen kan flippa knappen optimistiskt
+    // ANTI-STUTTER: rita INTE om medan du aktivt scrollar — en hel innerHTML-omritning mitt i en scroll avbryter
+    // rörelsen (du fick stanna och röra musen). Hoppa över tills du slutat (~0,6s); nästa ström-tick ritar då.
+    // (Första renderingen hoppas aldrig.) Sidans scroll rörs ALDRIG (ingen scrollTo) → ingen auto-scroll.
+    if(window._shareRendered && window._lastUserScroll && (Date.now()-window._lastUserScroll) < 600) return;
     document.getElementById('pname').textContent = d.name || 'Portfölj';
     document.title = d.name || 'Portfölj';
     // Belåningsgrad = belåning / bruttovärde (hävstångsnivå).
@@ -482,14 +486,16 @@
     // i stället → loggen står still där du lämnat den, inget auto-hopp.
     var _olb = document.getElementById('logbox');
     var _logTop = _olb ? _olb.scrollTop : 0;
-    var _pageY = window.scrollY || window.pageYOffset || 0;   // bevara SIDANS scroll över omritningen
-    document.getElementById('content').innerHTML = c;
+    document.getElementById('content').innerHTML = c;   // fönstrets scroll bevaras av WEBBLÄSAREN (scroll-container
+                                                        // = window) → INGEN scrollTo → inget stutter, ingen auto-scroll
     var _nlb = document.getElementById('logbox');
-    if(_nlb) _nlb.scrollTop = _logTop;   // behåll där användaren scrollat (ingen auto-scroll i loggrutan)
-    window.scrollTo(0, _pageY);          // återställ sidans scroll → sidan hoppar ALDRIG ner vid uppdatering
+    if(_nlb) _nlb.scrollTop = _logTop;   // behåll loggrutans EGNA (inre) scroll — rör aldrig sidan
     shareRenderChart();
     freshness(d.updated_epoch);
+    window._shareRendered = true;          // efter första renderingen får senare omritningar hoppas vid scroll
   }
+  // Spåra användarens scroll → render() hoppar över omritning under aktiv scroll (anti-stutter, ingen auto-scroll).
+  window.addEventListener('scroll', function(){ window._lastUserScroll = Date.now(); }, {passive:true});
 
   // SYSTEMLOGG: visa de senaste N raderna (default 60); "Hämta äldre" avslöjar fler ur de publicerade
   // (~300 i snapshoten) — som GUI:ts "Hämta äldre". Ingen auto-scroll. (Vill du längre bak än 300 rader
