@@ -429,11 +429,13 @@
 
     if(stocks.length){
       c += '<div class="sec">Aktier ('+stocks.length+')</div>';
-      c += '<div class="tbl"><table><thead><tr><th>Aktie</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
+      c += '<div class="tbl"><table><thead><tr><th>Aktie</th><th>Värde</th><th>Andel</th><th>% idag</th><th>kr idag</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
       stocks.forEach(function(h){
         c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span></td>'
            + '<td>'+kr(h.value_sek)+'</td>'
            + '<td>'+apTxt(h.value_sek)+'</td>'
+           + '<td class="'+cls(h.chg_pct)+'">'+pct(h.chg_pct)+'</td>'
+           + '<td class="'+cls(h.chg_sek)+'">'+plkr(h.chg_sek)+'</td>'
            + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
            + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td></tr>';
       });
@@ -443,7 +445,7 @@
       // Kompakt: kontraktsdetaljerna (strike · slutdatum · dgr · kurs) ligger som
       // underrad i första kolumnen → bara 5 kolumner = får plats i sidled på mobil.
       c += '<div class="sec">Optioner ('+opts.length+')</div>';
-      c += '<div class="tbl"><table><thead><tr><th>Option</th><th>Värde</th><th>Andel</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
+      c += '<div class="tbl"><table><thead><tr><th>Option</th><th>Värde</th><th>Andel</th><th>% idag</th><th>kr idag</th><th>P/L %</th><th>P/L kr</th></tr></thead><tbody>';
       opts.forEach(function(h){
         var r = h.right==='P'?'PUT':(h.right==='C'?'CALL':'');
         var sub = [];
@@ -455,6 +457,8 @@
            + '<div class="osub">'+sub.join(' · ')+'</div></td>'
            + '<td>'+kr(h.value_sek)+'</td>'
            + '<td>'+apTxt(h.value_sek)+'</td>'
+           + '<td class="'+cls(h.chg_pct)+'">'+pct(h.chg_pct)+'</td>'
+           + '<td class="'+cls(h.chg_sek)+'">'+plkr(h.chg_sek)+'</td>'
            + '<td class="'+cls(h.pnl_pct)+'">'+pct(h.pnl_pct)+'</td>'
            + '<td class="'+cls(h.pnl_sek)+'">'+plkr(h.pnl_sek)+'</td></tr>';
       });
@@ -469,10 +473,8 @@
     // systemloggen). Auto-scrollar till botten vid omritning OM du redan var längst ned (annars
     // behålls din position medan du läser historik). Stort, lättscrollat fönster (mobil + desktop).
     if(Array.isArray(d.log) && d.log.length){
-      c += '<div class="sec">Systemlogg</div>';
-      c += '<div class="logbox" id="logbox">' + d.log.map(function(l){
-            return '<div class="logln" style="color:'+shareLogColor(l)+'">'+esc(l)+'</div>';
-          }).join('') + '</div>';
+      window._shareLastLog = d.log;
+      c += '<div class="sec">Systemlogg</div><div id="logsec">' + shareLogSecHtml() + '</div>';
     }
     // AUTO-SCROLL BORTTAGEN (användarens önskemål): tidigare tvingades loggen till botten
     // (scrollTop = scrollHeight) vid varje omritning var 30:e sek → "hookade" sidans scroll på
@@ -480,13 +482,34 @@
     // i stället → loggen står still där du lämnat den, inget auto-hopp.
     var _olb = document.getElementById('logbox');
     var _logTop = _olb ? _olb.scrollTop : 0;
+    var _pageY = window.scrollY || window.pageYOffset || 0;   // bevara SIDANS scroll över omritningen
     document.getElementById('content').innerHTML = c;
     var _nlb = document.getElementById('logbox');
-    if(_nlb) _nlb.scrollTop = _logTop;   // behåll där användaren scrollat (ingen auto-scroll)
+    if(_nlb) _nlb.scrollTop = _logTop;   // behåll där användaren scrollat (ingen auto-scroll i loggrutan)
+    window.scrollTo(0, _pageY);          // återställ sidans scroll → sidan hoppar ALDRIG ner vid uppdatering
     shareRenderChart();
     freshness(d.updated_epoch);
   }
 
+  // SYSTEMLOGG: visa de senaste N raderna (default 60); "Hämta äldre" avslöjar fler ur de publicerade
+  // (~300 i snapshoten) — som GUI:ts "Hämta äldre". Ingen auto-scroll. (Vill du längre bak än 300 rader
+  // krävs en separat publicerad logg-historik — säg till.)
+  function shareLogSecHtml(){
+    var all = window._shareLastLog || [];
+    if(!window._shareLogShow) window._shareLogShow = 60;
+    var show = Math.min(all.length, window._shareLogShow), start = all.length - show;
+    var btn = (start > 0) ? '<div style="padding:4px 0 6px"><button onclick="shareLoadOlderLog()" style="background:#1b2230;color:#8fd6ff;border:1px solid #2a3a52;border-radius:6px;padding:5px 12px;font-size:.85em;cursor:pointer">Hämta äldre (' + start + ' till)</button></div>' : '';
+    return btn + '<div class="logbox" id="logbox">' + all.slice(start).map(function(l){
+      return '<div class="logln" style="color:' + shareLogColor(l) + '">' + esc(l) + '</div>';
+    }).join('') + '</div>';
+  }
+  function shareLoadOlderLog(){
+    window._shareLogShow = (window._shareLogShow || 60) + 60;
+    var sec = document.getElementById('logsec'); if(!sec) return;
+    var py = window.scrollY || window.pageYOffset || 0;
+    sec.innerHTML = shareLogSecHtml();
+    window.scrollTo(0, py);     // ingen auto-scroll — stå kvar där du är
+  }
   function chPeriodLabel(p){ return {'10m':'senaste 10 min','1h':'senaste timmen',today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
   function shareSetPeriod(p){ window._sharePeriod=p; try{ localStorage.setItem('share_period', p); }catch(e){} shareRenderChart(); }
   function shareToggleSpy(on){ window._shareSpyOn=!!on; try{ localStorage.setItem('share_spy_on', on?'1':'0'); }catch(e){} shareRenderChart(); }
