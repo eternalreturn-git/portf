@@ -93,7 +93,7 @@
   <header>
     <h1 id="pname">Portfölj</h1>
     <div class="fresh"><span class="dot" id="dot"></span><span id="fresh">laddar…</span></div>
-    <div class="fresh" id="ibrow" title="Är servern uppkopplad mot IB Gateway? Grön = live data. Röd = IB frånkopplad (siffrorna är frusna/döda) eller servern av."><span class="dot" id="ibdot"></span><span id="ibstat">IB: …</span></div>
+    <div class="fresh" id="ibrow" style="display:none" title="Är servern uppkopplad mot IB Gateway? Grön = live data. Röd = IB frånkopplad (siffrorna är frusna/döda) eller servern av."><span class="dot" id="ibdot"></span><span id="ibstat">IB: …</span></div>
   </header>
   <div id="content"><div class="msg" id="msg">Laddar…</div></div>
 </div>
@@ -358,8 +358,15 @@
   }
   function render(d){
     window._shareLast = d;                  // senaste payload → styrningen kan flippa knappen optimistiskt
-    if(d && typeof d.ib_connected !== 'undefined') window._ibConnected = d.ib_connected;   // IB-Gateway-indikator
-    try{ ibStatus(); }catch(e){}
+    var _ibrow = document.getElementById('ibrow');
+    if(d && d.is_owner){                          // IB-Gateway-indikator BARA på ägarens (F:s) fjärrsida
+      if(typeof d.ib_connected !== 'undefined') window._ibConnected = d.ib_connected;
+      if(_ibrow) _ibrow.style.display='';
+      try{ ibStatus(); }catch(e){}
+    } else {                                       // partners → ingen IB-status (freshness "Fryst"-grenen triggar ej)
+      window._ibConnected = undefined;
+      if(_ibrow) _ibrow.style.display='none';
+    }
     // ANTI-STUTTER: rita INTE om medan du aktivt scrollar — en hel innerHTML-omritning mitt i en scroll avbryter
     // rörelsen (du fick stanna och röra musen). Hoppa över tills du slutat (~0,6s); nästa ström-tick ritar då.
     // (Första renderingen hoppas aldrig.) Sidans scroll rörs ALDRIG (ingen scrollTo) → ingen auto-scroll.
