@@ -93,6 +93,7 @@
   <header>
     <h1 id="pname">Portfölj</h1>
     <div class="fresh"><span class="dot" id="dot"></span><span id="fresh">laddar…</span></div>
+    <div class="fresh" id="ibrow" title="Är servern uppkopplad mot IB Gateway? Grön = live data. Röd = IB frånkopplad (siffrorna är frusna/döda) eller servern av."><span class="dot" id="ibdot"></span><span id="ibstat">IB: …</span></div>
   </header>
   <div id="content"><div class="msg" id="msg">Laddar…</div></div>
 </div>
@@ -132,7 +133,10 @@
     var age=Math.max(0, Math.floor(now - epoch));
     var fbAge = window._lastFbTs ? (now - window._lastFbTs) : 1e9;   // sek sedan Firebase-strömmen senast levererade
     var snap=function(){ return new Date(epoch*1000).toLocaleString('sv-SE',{dateStyle:'short',timeStyle:'short'}); };
-    if(fbAge < 12){                                   // GRÖN: Firebase-strömmen flödar → live
+    if(fbAge < 12 && window._ibConnected === false){  // strömmen flödar MEN heartbeaten säger IB frånkopplad → FRYST
+      dot.className='dot'; dot.style.background='#f0a020';
+      f.textContent='Fryst data — IB frånkopplad';
+    } else if(fbAge < 12){                             // GRÖN: Firebase-strömmen flödar + IB ansluten → live
       dot.className='dot live'; dot.style.background='';
       f.textContent='Livestream';
     } else if(age >= 90){                              // RÖD: ingen färsk data på 90s → localservern är av
@@ -143,7 +147,26 @@
       f.textContent='GitHub-källa';
     }
   }
-  setInterval(function(){ try{ freshness(); }catch(e){} }, 1000);   // räkna upp åldern mellan strömtickarna → man ser exakt hur färsk den är + att den lever (0→1→0…)
+  // IB GATEWAY-INDIKATOR: är servern uppkopplad mot IB just nu (= levande data) eller inte (= frusna/döda siffror)?
+  // Live-strömmen bär ib_connected; vid frånkoppling pushas en heartbeat (ib_connected=false) så vi ser skillnad på
+  // "IB tappade" och "servern av". Helt tyst ström (>90s) → servern troligen av.
+  function ibStatus(){
+    var dot=document.getElementById('ibdot'), s=document.getElementById('ibstat');
+    if(!dot || !s) return;
+    var now=Date.now()/1000;
+    var fbAge = window._lastFbTs ? (now - window._lastFbTs) : 1e9;
+    var ic = window._ibConnected;
+    if(fbAge >= 90){                       // ingen färsk data alls → servern troligen av (IB-status okänd)
+      dot.className='dot'; dot.style.background='#ef4444'; s.textContent='IB: okänt — server offline';
+    } else if(ic === false){               // servern KÖR men IB frånkopplad → siffrorna är FRUSNA
+      dot.className='dot'; dot.style.background='#ef4444'; s.textContent='IB Gateway: FRÅNKOPPLAD (fryst data)';
+    } else if(ic === true && fbAge < 20){  // färsk ström + uppkopplad → levande data
+      dot.className='dot live'; dot.style.background=''; s.textContent='IB Gateway: uppkopplad';
+    } else {                               // mellanläge (väntar på färsk payload / ström hackar)
+      dot.className='dot'; dot.style.background='#f0a020'; s.textContent='IB: kontrollerar…';
+    }
+  }
+  setInterval(function(){ try{ freshness(); ibStatus(); }catch(e){} }, 1000);   // räkna upp åldern mellan strömtickarna → man ser exakt hur färsk den är + att den lever (0→1→0…)
 
   function byVal(a,b){ return (b.value_sek||0)-(a.value_sek||0); }
   function plkr(v){ return (v==null)?'—':((v>=0?'+':'−')+Math.round(Math.abs(v)).toLocaleString('sv-SE')); }
@@ -335,6 +358,8 @@
   }
   function render(d){
     window._shareLast = d;                  // senaste payload → styrningen kan flippa knappen optimistiskt
+    if(d && typeof d.ib_connected !== 'undefined') window._ibConnected = d.ib_connected;   // IB-Gateway-indikator
+    try{ ibStatus(); }catch(e){}
     // ANTI-STUTTER: rita INTE om medan du aktivt scrollar — en hel innerHTML-omritning mitt i en scroll avbryter
     // rörelsen (du fick stanna och röra musen). Hoppa över tills du slutat (~0,6s); nästa ström-tick ritar då.
     // (Första renderingen hoppas aldrig.) Sidans scroll rörs ALDRIG (ingen scrollTo) → ingen auto-scroll.
