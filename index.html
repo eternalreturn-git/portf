@@ -484,7 +484,7 @@
       window._sharePeriod = (['10m','1h','today','1d','7d','1m','ytd','y','all'].indexOf(_sp)>=0) ? _sp : 'today'; }
     var hasChart = Object.keys(window._shareChart).some(function(k){ return (window._shareChart[k]||[]).length>=2; });
     if(hasChart){
-      c += '<div class="sec">Portföljens utveckling <span id="chDelta" class="chdelta"></span></div>'
+      c += '<div class="sec">Portföljens utveckling <span id="chDelta" class="chdelta"></span><span id="chDeltaKr" class="chdelta"></span></div>'
          + '<div id="chTog" class="chtog"></div>'
          + '<div id="chHi" class="chx"></div>'
          + '<div id="chWrap" class="chwrap"></div>'
@@ -706,7 +706,8 @@
     var hi=document.getElementById('chHi'), lo=document.getElementById('chLo'),
         wrap=document.getElementById('chWrap'), delta=document.getElementById('chDelta');
     if(pts.length<2){ wrap.innerHTML='<div class="chmsg">Ingen data för "'+chPeriodLabel(per)+'" än.</div>';
-      hi.textContent=''; lo.textContent=''; if(delta) delta.textContent=''; return; }
+      hi.textContent=''; lo.textContent=''; if(delta) delta.textContent='';
+      var _dkr0=document.getElementById('chDeltaKr'); if(_dkr0) _dkr0.textContent=''; return; }
     var dayView=(per==='today'||per==='1d'), hourView=(per==='1h'||per==='10m'), timeView=dayView||hourView;
     var ps=pts.map(function(o){ return o.p; });
     var cur=ps[ps.length-1];
@@ -902,6 +903,16 @@
     // kurvans slutvärde. Övriga vyer: kurvans %. (KPI saknas → fall tillbaka på kurvan.)
     var _dpct = ((per==='today'||per==='1d') && typeof window._shareTodayKpi==='number') ? window._shareTodayKpi : cur;
     if(delta){ delta.textContent=(_dpct>=0?'+':'')+_dpct.toFixed(2)+'%'; delta.className='chdelta '+(_dpct>=0?'pos':'neg'); }
+    // KR för aktuell vy efter %:en: värdeförändring över perioden MINUS insättningar/uttag i fönstret
+    // (= ren marknadsutveckling i kr, konsistent med TWR-%:en). Färgkodat grönt/rött.
+    var _dkrEl=document.getElementById('chDeltaKr');
+    if(_dkrEl && krSeries && krSeries.length>=2){
+      var _flowSum=0, _t0=pts[0].t, _t1=pts[pts.length-1].t, _mk=window._shareMarks||[];
+      for(var _mi=0;_mi<_mk.length;_mi++){ var _mt=+_mk[_mi].ts; if(_mt>_t0 && _mt<=_t1) _flowSum+=(+_mk[_mi].amount_sek||0); }
+      var _devKr=(krSeries[krSeries.length-1]-krSeries[0])-_flowSum;
+      _dkrEl.textContent=' · '+plkr(_devKr)+' kr';
+      _dkrEl.className='chdelta '+(_devKr>=0?'pos':'neg');
+    } else if(_dkrEl){ _dkrEl.textContent=''; }
     // Hårkors: %-värde + klockslag vid hover/touch (delningssidan har bara %).
     window._shareHover = pts.map(function(o,i){ return {xf:xAt(i)/W, yf:y(o.p)/H, t:o.t, p:o.p, kr:krSeries[i]}; });
     window._shareHoverPeriod = per;
