@@ -494,8 +494,13 @@
     freshness(d.updated_epoch);
     window._shareRendered = true;          // efter första renderingen får senare omritningar hoppas vid scroll
   }
-  // Spåra användarens scroll → render() hoppar över omritning under aktiv scroll (anti-stutter, ingen auto-scroll).
-  window.addEventListener('scroll', function(){ window._lastUserScroll = Date.now(); }, {passive:true});
+  // Spåra ALL scroll-aktivitet → render() hoppar över omritning under aktiv scroll (anti-stutter, ingen auto-scroll).
+  // VIKTIGT: 'scroll' bubblar INTE → fånga i CAPTURE-fas så scroll INNE i loggrutan (inre overflow-div) också
+  // räknas (annars byggde omritningen om loggrutan mitt i din scroll → den stannade). wheel/touchmove täcker
+  // mus-hjul + touch oavsett var pekaren är.
+  ['scroll','wheel','touchmove'].forEach(function(ev){
+    window.addEventListener(ev, function(){ window._lastUserScroll = Date.now(); }, {passive:true, capture:true});
+  });
 
   // SYSTEMLOGG: visa de senaste N raderna (default 60); "Hämta äldre" avslöjar fler ur de publicerade
   // (~300 i snapshoten) — som GUI:ts "Hämta äldre". Ingen auto-scroll. (Vill du längre bak än 300 rader
