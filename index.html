@@ -51,6 +51,7 @@
   tbody tr:last-child td{border-bottom:none}
   tbody tr:hover td{background:rgba(255,255,255,.05)}
   .tk{font-weight:700} .ty{font-size:.66rem;color:var(--dim);margin-left:6px}
+  .tk-ny{color:#facc15;font-weight:800;font-size:.56rem;letter-spacing:.05em;margin-left:5px;padding:0 3px;border:0.5px solid #facc1566;border-radius:3px;background:rgba(250,204,21,.10);vertical-align:middle}
   .osub{font-size:.66rem;color:var(--dim);font-family:var(--mono);margin-top:2px;white-space:normal;line-height:1.35}
   /* IDAG / SEN START-växel (höger om sektionsrubriken) → byter de två P/L-kolumnerna så allt får plats utan scroll. */
   .sec-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -146,6 +147,7 @@
   function pct(v,dec){ if(v==null) return '—'; var s=(v>=0?'+':'')+v.toFixed(dec==null?1:dec)+'%'; return s; }
   function cls(v){ return v==null?'':(v>=0?'pos':'neg'); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function nyTag(tk){ var bt=window._shareBoughtToday||[]; return (bt.indexOf(String(tk==null?'':tk).toUpperCase())>=0) ? '<span class="tk-ny">NY</span>' : ''; }
 
   function freshness(epoch){
     if(epoch) window._shareEpoch = epoch;       // ny stämpel från en render → spara den senaste
@@ -480,6 +482,7 @@
     window._shareTodayKpi = (typeof d.today_kpi_pct==='number') ? d.today_kpi_pct : null;  // Idag/1D = GUI:ts positions-KPI
     if(window._shareSpyOn===undefined){ try{ window._shareSpyOn = localStorage.getItem('share_spy_on')==='1'; }catch(e){ window._shareSpyOn=false; } }
     window._shareEquity = (typeof d.equity_sek==='number') ? d.equity_sek : null;
+    window._shareBoughtToday = Array.isArray(d.bought_today) ? d.bought_today.map(function(s){return String(s).toUpperCase();}) : [];   // dagens NYA innehav → 'NY'-tagg
     if(!window._sharePeriod){ var _sp=null; try{ _sp=localStorage.getItem('share_period'); }catch(e){}
       window._sharePeriod = (['10m','1h','today','1d','7d','1m','ytd','y','all'].indexOf(_sp)>=0) ? _sp : 'today'; }
     var hasChart = Object.keys(window._shareChart).some(function(k){ return (window._shareChart[k]||[]).length>=2; });
@@ -534,7 +537,7 @@
          + '</tr></thead><tbody>';
       _sortHoldings(stocks, window._shStkSort).forEach(function(h){
         var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek;
-        c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span></td>'
+        c += '<tr><td><span class="tk">'+esc(h.ticker)+'</span>'+nyTag(h.ticker)+'</td>'
            + '<td>'+kr(h.value_sek)+'</td>'
            + '<td>'+apTxt(h.value_sek)+'</td>'
            + '<td class="'+cls(_p)+'">'+pct(_p)+'</td>'
@@ -562,7 +565,7 @@
         if(h.dte!=null) info2.push('<b>'+h.dte+'</b> dagar kvar');
         var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek, _l = 'P/L';
         c += '<div class="ocard">'
-           + '<div class="ohead"><span class="tk">'+esc(h.ticker)+'</span>'+(r?'<span class="ty">'+r+'</span>':'')+'</div>'
+           + '<div class="ohead"><span class="tk">'+esc(h.ticker)+'</span>'+nyTag(h.ticker)+(r?'<span class="ty">'+r+'</span>':'')+'</div>'
            + '<div class="oinfo">'+info1.join(' · ')+(info2.length?'<br>'+info2.join(' · '):'')+'</div>'
            + '<div class="onums">'
            +   '<span><span class="lbl">Värde</span>'+kr(h.value_sek)+'</span>'
