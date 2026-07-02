@@ -479,8 +479,10 @@
     window._shareChart = d.chart || {};
     window._shareMarks = d.marks || [];    // BARA den här partnerns insättnings-/uttagsmarkörer
     window._shareSpy = d.spy || {};        // SPY-överlägg (per period, normaliserad %)
+    window._shareFx = d.fx || {};          // USD/SEK-överlägg (per period, normaliserad %) — cyan streckad
     window._shareTodayKpi = (typeof d.today_kpi_pct==='number') ? d.today_kpi_pct : null;  // Idag/1D = GUI:ts positions-KPI
     if(window._shareSpyOn===undefined){ try{ window._shareSpyOn = localStorage.getItem('share_spy_on')==='1'; }catch(e){ window._shareSpyOn=false; } }
+    if(window._shareFxOn===undefined){ try{ window._shareFxOn = localStorage.getItem('share_fx_on')==='1'; }catch(e){ window._shareFxOn=false; } }
     window._shareEquity = (typeof d.equity_sek==='number') ? d.equity_sek : null;
     window._shareBoughtToday = Array.isArray(d.bought_today) ? d.bought_today.map(function(s){return String(s).toUpperCase();}) : [];   // dagens NYA innehav → 'NY'-tagg
     if(!window._sharePeriod){ var _sp=null; try{ _sp=localStorage.getItem('share_period'); }catch(e){}
@@ -638,6 +640,7 @@
   function chPeriodLabel(p){ return {'10m':'senaste 10 min','1h':'senaste timmen',today:'Idag','1d':'1D','7d':'7D','1m':'1M',ytd:'YTD',y:'1Y',all:'Allt'}[p]||p; }
   function shareSetPeriod(p){ window._sharePeriod=p; try{ localStorage.setItem('share_period', p); }catch(e){} shareRenderChart(); }
   function shareToggleSpy(on){ window._shareSpyOn=!!on; try{ localStorage.setItem('share_spy_on', on?'1':'0'); }catch(e){} shareRenderChart(); }
+  function shareToggleFx(on){ window._shareFxOn=!!on; try{ localStorage.setItem('share_fx_on', on?'1':'0'); }catch(e){} shareRenderChart(); }
   // Rekonstruera partnerns kr-värde per punkt: förankrat på NUVARANDE eget kapital (sista punkten)
   // och BAKÅT via marknadsutvecklingen (flödesjusterade %:en), med STEG vid insättningar/uttag
   // (beloppet). → nu-värdet stämmer med kortet; +100k vid en insättning gör värdet 100k större.
@@ -662,9 +665,12 @@
     var chart=window._shareChart||{}, per=window._sharePeriod||'today';
     var PERIODS=[['10m','10m'],['1h','1H'],['today','Idag'],['1d','1D'],['7d','7D'],['1m','1M'],['ytd','YTD'],['y','1Y'],['all','Allt']];
     var spyHas = Object.keys(window._shareSpy||{}).some(function(k){ return (window._shareSpy[k]||[]).length>=2; });
+    var fxHas = Object.keys(window._shareFx||{}).some(function(k){ return (window._shareFx[k]||[]).length>=2; });
+    var _spySw = spyHas ? '<label style="display:inline-flex;align-items:center;gap:6px;'+(spyHas?'margin-left:auto;':'')+'font-size:.78rem;color:var(--text);cursor:pointer;white-space:nowrap"><span class="tgl"><input type="checkbox" '+(window._shareSpyOn?'checked':'')+' onchange="shareToggleSpy(this.checked)"><span class="sl"></span></span>SPY <span id="spyVal" style="font-family:var(--mono);display:inline-block;width:56px;text-align:left"></span></label>' : '';
+    var _fxSw = fxHas ? '<label style="display:inline-flex;align-items:center;gap:6px;'+(spyHas?'':'margin-left:auto;')+'font-size:.78rem;color:var(--text);cursor:pointer;white-space:nowrap"><span class="tgl"><input type="checkbox" '+(window._shareFxOn?'checked':'')+' onchange="shareToggleFx(this.checked)"><span class="sl"></span></span><span style="color:#22d3ee">USD/SEK</span> <span id="fxValShare" style="font-family:var(--mono);display:inline-block;width:56px;text-align:left"></span></label>' : '';
     tog.innerHTML = PERIODS.map(function(kv){
       return '<button class="chbtn'+(kv[0]===per?' on':'')+'" onclick="shareSetPeriod(\''+kv[0]+'\')">'+kv[1]+'</button>';
-    }).join('') + (spyHas ? '<label style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:.78rem;color:var(--text);cursor:pointer;white-space:nowrap"><span class="tgl"><input type="checkbox" '+(window._shareSpyOn?'checked':'')+' onchange="shareToggleSpy(this.checked)"><span class="sl"></span></span>SPY <span id="spyVal" style="font-family:var(--mono);display:inline-block;width:56px;text-align:left"></span></label>' : '');
+    }).join('') + _spySw + _fxSw;
     var key=(per==='1d')?'today':per, pts=chart[key]||[];
     // 1s-LIVE-SVANS på 10m/1h: lägg värde-strömmens färska punkter (kr → %) EFTER sista server-punkten →
     // betydligt fler datapunkter den senaste stunden än value_logs 10s. %:en ankras vid sista server-%:en
@@ -727,7 +733,7 @@
     // punkten vid/efter portföljens första punkt — samma 0%-ankare som GUI:t, robust mot logg-
     // luckor (annars förskjuts baslinjen av SPY-rörelse före portföljens datastart). Speglar
     // static/app.js renderChart: 1D-fönstret börjar vid midnatt, övriga vid portföljens start.
-    var _spyPts=null;
+    var _spyPts=null, _fxPts=null;
     if(window._shareSpyOn){
       var spyKey=(per==='1d')?'today':per;
       var ssrc=(window._shareSpy||{})[spyKey]||[];
@@ -748,12 +754,31 @@
         }
       }
     }
+    // USD/SEK-överlägg (cyan streckad) — EXAKT samma ankring/fönster som SPY, källa = _shareFx.
+    if(window._shareFxOn){
+      var fxKey=(per==='1d')?'today':per;
+      var fsrc=(window._shareFx||{})[fxKey]||[];
+      if(fsrc.length>=2){
+        var _fwNow=Math.floor(Date.now()/1000);
+        var _fw0=pts[0].t;
+        if(per==='1d'){ var _fd0=new Date(); _fd0.setHours(0,0,0,0); var _fmt=Math.floor(_fd0.getTime()/1000); if(_fmt>_fwNow) _fmt-=86400; _fw0=Math.min(_fw0,_fmt); }
+        var _fw1=pts[pts.length-1].t+3600;
+        var winF=fsrc.filter(function(o){ return o.t>=_fw0 && o.t<=_fw1; });
+        if(winF.length>=2){
+          var _fbI=0; for(var _fbj=0;_fbj<winF.length;_fbj++){ if(winF[_fbj].t>=pts[0].t){ _fbI=_fbj; break; } }
+          var fb0=winF[_fbI].p;
+          var _fxAnchor=(typeof ps[0]==='number'&&isFinite(ps[0]))?ps[0]:0;
+          _fxPts=winF.map(function(o){ return {t:o.t, p:o.p-fb0+_fxAnchor}; });
+        }
+      }
+    }
     // PORTFÖLJENS egna extremer (för Högst/Lägst). Y-skalan vidgas av SPY men etiketterna visar portföljen.
     // AUTO-FIT: portföljens EGNA min/max (ingen tvingad 0) → kurvan fyller höjden även vid små intradag-
     // rörelser (förut tvingade ett 0,2%-golv platt). Liten proportionell luft top/botten.
     var pHiV=Math.max.apply(null,ps), pLoV=Math.min.apply(null,ps);
     var loV=pLoV, hiV=pHiV;
     if(_spyPts){ _spyPts.forEach(function(s){ if(s.p<loV)loV=s.p; if(s.p>hiV)hiV=s.p; }); }
+    if(_fxPts){ _fxPts.forEach(function(s){ if(s.p<loV)loV=s.p; if(s.p>hiV)hiV=s.p; }); }
     if(hiV-loV < 0.02){ var _midV=(hiV+loV)/2; hiV=_midV+0.01; loV=_midV-0.01; }   // ~platt → litet fönster (ingen 0-division)
     else { var _padV=(hiV-loV)*0.12; hiV+=_padV; loV-=_padV; }                     // 12% luft → fyller höjden med marginal
     var W=1000,H=200,padY=14, t0,t1,guides=[], marketLines=[], xAt;
@@ -855,11 +880,46 @@
         }
       }
     }
+    // USD/SEK-linjen (cyan streckad) — EXAKT samma path-bygge som SPY.
+    var fxLine='', _fxShownP=null;
+    if(_fxPts && _fxPts.length>=2){
+      if(timeView){
+        var _fpS=Math.max(1,t1-t0);
+        var segF=_fxPts.filter(function(s){ return s.t>=t0 && s.t<=t1; });
+        if(segF.length>=2){
+          var dStrF='', rsF=0, lastPF=null;
+          for(var fi=1; fi<=segF.length; fi++){
+            if(fi===segF.length || segF[fi].t-segF[fi-1].t>2700){
+              if(fi-rsF>=2){
+                dStrF += segF.slice(rsF,fi).map(function(s,j){ return (j?'L':'M')+(((s.t-t0)/_fpS)*W).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')+' ';
+                lastPF=segF[fi-1];
+              }
+              rsF=fi;
+            }
+          }
+          if(dStrF){ _fxShownP=lastPF.p;
+            fxLine='<path d="'+dStrF.replace(/\s+$/,'')+'" fill="none" stroke="#22d3ee" stroke-width="1.4" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" opacity="0.9"/>'; }
+        }
+      } else {
+        var _ft0p=pts[0].t, _ft1p=pts[pts.length-1].t;
+        var segFO=_fxPts.filter(function(s){ return s.t>=_ft0p && s.t<=_ft1p; });
+        if(segFO.length>=2){
+          _fxShownP=segFO[segFO.length-1].p;
+          fxLine='<path d="'+segFO.map(function(s,i){ return (i?'L':'M')+_xAtTimeS(s.t).toFixed(1)+','+y(s.p).toFixed(1); }).join(' ')
+            +'" fill="none" stroke="#22d3ee" stroke-width="1.4" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" opacity="0.9"/>';
+        }
+      }
+    }
     // SPY-värdet vid switchen (inte i grafen → ingen krock).
     (function(){ var sv=document.getElementById('spyVal'); if(!sv) return;
       if(window._shareSpyOn && _spyShownP!=null){ var sp=_spyShownP-((typeof ps[0]==='number'&&isFinite(ps[0]))?ps[0]:0);   // dra av portfölj-ankaret → SPY:s EGNA % (linjen ankras till ps[0], men headern visar SPY:s rörelse)
         sv.textContent=(sp>=0?'+':'')+sp.toFixed(2)+'%'; sv.style.color=sp>=0?'var(--pos)':'var(--neg)'; }
       else { sv.textContent=''; } })();
+    // USD/SEK-värdet vid dess switch.
+    (function(){ var fv=document.getElementById('fxValShare'); if(!fv) return;
+      if(window._shareFxOn && _fxShownP!=null){ var fp=_fxShownP-((typeof ps[0]==='number'&&isFinite(ps[0]))?ps[0]:0);
+        fv.textContent=(fp>=0?'+':'')+fp.toFixed(2)+'%'; fv.style.color='#22d3ee'; }
+      else { fv.textContent=''; } })();
     var zeroY=y(0).toFixed(1), col=cur>=0?'var(--pos)':'var(--neg)';
     var colHex=cur>=0?'#22c55e':'#ef4444';
     var x0=xAt(0).toFixed(1), xN=xAt(pts.length-1).toFixed(1);
@@ -897,7 +957,7 @@
       +'<stop offset="1" stop-color="'+colHex+'" stop-opacity="0"/></linearGradient></defs>'
       +mktsvg
       +'<path d="'+areaD+'" fill="url(#chartGrad)"/>'
-      +spyLine
+      +spyLine+fxLine
       +'<path d="'+lineD+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>'
       +'</svg><div class="chcross"></div><div class="chcross-h"></div><div class="chtip"></div><div class="chtime"></div>'+glabels+flowMarks;
     hi.textContent='Högst '+pHiV.toFixed(2)+'%';
