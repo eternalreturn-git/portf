@@ -484,6 +484,10 @@
     if(window._shareSpyOn===undefined){ try{ window._shareSpyOn = localStorage.getItem('share_spy_on')==='1'; }catch(e){ window._shareSpyOn=false; } }
     if(window._shareFxOn===undefined){ try{ window._shareFxOn = localStorage.getItem('share_fx_on')==='1'; }catch(e){ window._shareFxOn=false; } }
     window._shareEquity = (typeof d.equity_sek==='number') ? d.equity_sek : null;
+    // PARTNERNS "sedan start"-facit (värde − insatt) → "Allt"-vyns kurva/header förankras mot EXAKT
+    // dessa tal (samma som kortet "Utveckling på insatt kapital") — speglar GUI:ts ägar-avstämning.
+    window._sharePnl = { pct: (typeof d.pnl_pct==='number') ? d.pnl_pct : null,
+                         kr:  (typeof d.pnl_sek==='number') ? d.pnl_sek : null };
     window._shareBoughtToday = Array.isArray(d.bought_today) ? d.bought_today.map(function(s){return String(s).toUpperCase();}) : [];   // dagens NYA innehav → 'NY'-tagg
     if(!window._sharePeriod){ var _sp=null; try{ _sp=localStorage.getItem('share_period'); }catch(e){}
       window._sharePeriod = (['10m','1h','today','1d','7d','1m','ytd','y','all'].indexOf(_sp)>=0) ? _sp : 'today'; }
@@ -727,6 +731,18 @@
       var _sh = window._shareTodayKpi - cur;
       if(Math.abs(_sh) > 1e-9){ for(var _i=0;_i<ps.length;_i++){ ps[_i]+=_sh; pts[_i]={t:pts[_i].t, p:ps[_i]}; } cur=ps[ps.length-1]; }
     }
+    // "ALLT" = PARTNERNS utveckling sedan start: förankra kurvans SLUTPUNKT mot facit (pnl_pct = värde −
+    // insatt, samma tal som kortet "Utveckling på insatt kapital") — speglar GUI:ts ägar-avstämning.
+    // Skillnaden mot brutto-TWR-serien sprids LINJÄRT över tiden (driftkorrigering, ej spegelvändning):
+    // formen bevaras, start=0%, slut=facit. Mellanpunkter approximativa, ändpunkter exakta.
+    if(per==='all' && window._sharePnl && typeof window._sharePnl.pct==='number' && isFinite(window._sharePnl.pct) && ps.length>1){
+      var _t0a=pts[0].t, _t1a=pts[pts.length-1].t;
+      if(_t1a>_t0a && isFinite(cur)){
+        var _dr=window._sharePnl.pct - cur;
+        for(var _j=0;_j<ps.length;_j++){ ps[_j]+=_dr*((pts[_j].t-_t0a)/(_t1a-_t0a)); pts[_j]={t:pts[_j].t, p:ps[_j]}; }
+        cur=ps[ps.length-1];
+      }
+    }
     // Partnerns kr-värde per punkt (steg vid insättningar). Förankrat på eget kapital nu.
     var krSeries=shareReconstructKr(pts, ps, window._shareMarks||[], (+window._shareEquity||0));
     // SPY-överlägg: FÖNSTRA serien till vyns/portföljens datafönster och RE-BASERA på första
@@ -964,13 +980,19 @@
     lo.textContent='Lägst '+pLoV.toFixed(2)+'%';
     // IDAG/1D: visa GUI:ts positions-KPI (samma portfölj → samma siffra), ej den brusiga value_log-
     // kurvans slutvärde. Övriga vyer: kurvans %. (KPI saknas → fall tillbaka på kurvan.)
-    var _dpct = ((per==='today'||per==='1d') && typeof window._shareTodayKpi==='number') ? window._shareTodayKpi : cur;
-    if(delta){ delta.textContent=(_dpct>=0?'+':'')+_dpct.toFixed(2)+'%'; delta.className='chdelta '+(_dpct>=0?'pos':'neg'); }
+    var _allPnl = (per==='all' && window._sharePnl && typeof window._sharePnl.pct==='number') ? window._sharePnl : null;
+    var _dpct = ((per==='today'||per==='1d') && typeof window._shareTodayKpi==='number') ? window._shareTodayKpi
+              : (_allPnl ? _allPnl.pct : cur);
+    if(delta){ delta.textContent=(_dpct>=0?'+':'')+_dpct.toFixed(_allPnl?1:2)+'%'; delta.className='chdelta '+(_dpct>=0?'pos':'neg'); }
     // KR för aktuell vy efter %:en: värdeförändring över perioden MINUS insättningar/uttag i fönstret
     // (= ren marknadsutveckling i kr, konsistent med TWR-%:en). Färgkodat grönt/rött.
+    // "ALLT": exakt facit-kr (värde − insatt) = samma tal som kortet "Utveckling på insatt kapital".
     var _dkrEl=document.getElementById('chDeltaKr');
     var _dayViewKr=(per==='today'||per==='1d');
-    if(_dkrEl && _dayViewKr && typeof _dpct==='number' && (+window._shareEquity>0)){
+    if(_dkrEl && _allPnl && typeof _allPnl.kr==='number'){
+      _dkrEl.textContent=' · '+plkr(_allPnl.kr)+' kr';
+      _dkrEl.className='chdelta '+(_allPnl.kr>=0?'pos':'neg');
+    } else if(_dkrEl && _dayViewKr && typeof _dpct==='number' && (+window._shareEquity>0)){
       // IDAG/1D: kr = dags-% × partnerns EGET kapital → konsistent med %:en OCH korrekt partner-skalat.
       // Undviker value_log-kurvans kr-reconstruction som vid DYGNSSTART kan börja på ett uppvärmnings-/
       // glitch-lågt värde → falskt högt kr (sågs: A visade +16 330 kr fast dagsutvecklingen var ~+300 kr).
