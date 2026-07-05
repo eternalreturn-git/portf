@@ -311,6 +311,20 @@
     }catch(e){ ctlSetMsg('<span class="neg">Kunde inte skicka: '+esc(String(e))+'</span>'); }
     finally{ window._ctlPend.sell=false; ctlRenderCard(); setTimeout(load, 22000); }
   }
+  // ENGÅNGS-ÅTGÄRD (ej toggle): återställ dygns-breaker / slå av nödstopp. Låser knappen tills ack.
+  async function ctlAction(action, label){
+    if(window._ctlPend[action]) return;
+    window._ctlPend[action]=true; ctlRenderCard();
+    ctlSetMsg('<span style="color:var(--dim)">'+esc(label)+': skickar…</span>');
+    try{
+      var id=await ctlSend({action:action});
+      var a=await ctlWaitAck(id, label);
+      if(a && a.ok) ctlSetMsg('<span class="pos">'+esc(label)+' ✓ ('+esc(a.msg||'utfört')+')</span>');
+      else if(a) ctlSetMsg('<span class="neg">Avvisat: '+esc(a.msg||'')+'</span>');
+      else ctlSetMsg('<span style="color:#e0b341">Skickat, ingen bekräftelse på 42 s — servern kör vid nästa poll.</span>');
+    }catch(e){ ctlSetMsg('<span class="neg">Kunde inte skicka: '+esc(String(e))+'</span>'); }
+    finally{ window._ctlPend[action]=false; ctlRenderCard(); setTimeout(load, 22000); }
+  }
   // En självständig toggle-switch (speglar serverläge; dimmad+låst medan vi väntar på ack).
   function ctlSwitchHtml(key, label, sub, on, pend, syncing){
     var col = on?'#22c55e':'#5a6470', bg = on?'#11331c':'#161b21', knob = on?'right:3px':'left:3px';
@@ -349,6 +363,22 @@
                                              : '<span style="color:#e0b341;font-weight:600">Manuellt avslagen</span>');
     h += ctlSwitchHtml('ao',  'Automatiska ordrar', aoSub, aoOn, !!window._ctlPend.ao, false);
     h += ctlSwitchHtml('arm', 'Säkerhetsswitch',    armSub, armOn, !!window._ctlPend.arm, false);
+    // RIGID DYGNS-BREAKER: utlöst → allt fryst. Egen återställ-knapp (nollar räknaren + tinar handeln).
+    if(d.breaker_frozen){
+      h += '<div style="margin:10px 0 2px;padding:10px;border-radius:9px;background:#0b2b3a;border:1px solid #0ea5e955">'
+        + '<div style="font-weight:700;color:#7dd3fc">Dygns-breaker utlöst — ALL handel fryst</div>'
+        + '<div style="color:var(--dim);font-size:.8em;margin:3px 0 8px">Ingen order (köp/sälj/exit) går igenom förrän du återställer.</div>'
+        + '<button onclick="ctlAction(\'breaker_reset\',\'Återställ breaker\')" '+(window._ctlPend.breaker_reset?'disabled ':'')
+        + 'style="width:100%;padding:11px;border-radius:8px;border:none;background:#0ea5e9;color:#04121c;font-weight:800'+(window._ctlPend.breaker_reset?';opacity:.5':'')+'">'
+        + (window._ctlPend.breaker_reset?'Skickar…':'Återställ &amp; tina handel')+'</button></div>';
+    }
+    if(d.emergency_stop){
+      h += '<div style="margin:10px 0 2px;padding:10px;border-radius:9px;background:#2b0b0b;border:1px solid #ef444455">'
+        + '<div style="font-weight:700;color:#fca5a5">Nödstopp aktivt</div>'
+        + '<button onclick="ctlAction(\'estop_off\',\'Slå av nödstopp\')" '+(window._ctlPend.estop_off?'disabled ':'')
+        + 'style="width:100%;margin-top:8px;padding:11px;border-radius:8px;border:none;background:#ef4444;color:#1a0505;font-weight:800'+(window._ctlPend.estop_off?';opacity:.5':'')+'">'
+        + (window._ctlPend.estop_off?'Skickar…':'Slå av nödstopp')+'</button></div>';
+    }
     h += '<div id="ctlSt" style="font-size:.8em;margin-top:10px;min-height:16px">'+(window._ctlMsg||'')+'</div>';
     var cs = d.closable||[];
     if(cs.length){
