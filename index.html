@@ -736,6 +736,9 @@
       return '<button class="chbtn'+(kv[0]===per?' on':'')+'" onclick="shareSetPeriod(\''+kv[0]+'\')">'+kv[1]+'</button>';
     }).join('') + _spySw + _fxSw;
     var key=(per==='1d')?'today':per, pts=chart[key]||[];
+    // ROBUST: saknar PM-kurvan denna period (t.ex. en snapshot publicerad före chart_pm fanns) → visa
+    // RTH-kurvan i st.f. en tom graf. Live-svansen nedan följer ändå PM-värdet.
+    if((!pts||!pts.length) && shareIsPm() && window._shareChart){ pts = window._shareChart[key]||[]; }
     // 1s-LIVE-SVANS på 10m/1h: lägg värde-strömmens färska punkter (kr → %) EFTER sista server-punkten →
     // betydligt fler datapunkter den senaste stunden än value_logs 10s. %:en ankras vid sista server-%:en
     // (partnervärdets %-rörelse = portföljens). Tom serie/annan vy → oförändrat (server-datan).
