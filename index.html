@@ -794,6 +794,11 @@
     if(dayView && typeof window._shareTodayKpi==='number' && isFinite(window._shareTodayKpi)){
       var _sh = window._shareTodayKpi - cur;
       if(Math.abs(_sh) > 1e-9){ for(var _i=0;_i<ps.length;_i++){ ps[_i]+=_sh; pts[_i]={t:pts[_i].t, p:ps[_i]}; } cur=ps[ps.length-1]; }
+      // LIVE-SPETS (speglar GUI:ts renderChart): lägg en punkt vid NU som spårar live-KPI:n (_shareTodayKpi
+      // uppdateras ~1s via Firebase-strömmen) → ändpunkten når högerkanten och rör sig i realtid mellan de
+      // tunga hel-publiceringarna. Samma nivå som den KPI-skiftade slutpunkten → kontinuerligt, ingen nivåspik.
+      var _nowTs=Math.floor(Date.now()/1000), _lastTs=pts.length?pts[pts.length-1].t:0;
+      if(_nowTs > _lastTs+1){ pts=pts.concat([{t:_nowTs, p:window._shareTodayKpi}]); ps=ps.concat([window._shareTodayKpi]); cur=window._shareTodayKpi; }
     }
     // "ALLT" = PARTNERNS utveckling sedan start: förankra kurvans SLUTPUNKT mot facit (pnl_pct = värde −
     // insatt, samma tal som kortet "Utveckling på insatt kapital") — speglar GUI:ts ägar-avstämning.
