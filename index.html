@@ -510,6 +510,7 @@
     // Utvecklingsgraf (samma %-serie som GUI:t, utan cirkeldiagram). Tidknapparna
     // byter period lokalt — all data är redan inbäddad i payloaden.
     window._shareChart = d.chart || {};
+    window._shareChartPm = d.chart_pm || {};   // PM-kurva (postmarket) → PM-toggeln växlar till denna
     window._shareMarks = d.marks || [];    // BARA den här partnerns insättnings-/uttagsmarkörer
     window._shareSpy = d.spy || {};        // SPY-överlägg (per period, normaliserad %)
     window._shareFx = d.fx || {};          // USD/SEK-överlägg (per period, normaliserad %) — cyan streckad
@@ -723,7 +724,8 @@
   }
   function shareRenderChart(){
     var tog=document.getElementById('chTog'); if(!tog) return;   // ingen graf på denna sida
-    var chart=window._shareChart||{}, per=window._sharePeriod||'today';
+    // TVÅ SEPARATA KURVOR: PM-toggeln BYTER hela historiska serien (rth <-> pm), konsekvent med GUI:t.
+    var chart=(shareIsPm() ? (window._shareChartPm||window._shareChart) : window._shareChart)||{}, per=window._sharePeriod||'today';
     var PERIODS=[['10m','10m'],['1h','1H'],['today','Idag'],['1d','1D'],['7d','7D'],['1m','1M'],['ytd','YTD'],['y','1Y'],['all','Allt']];
     var spyHas = Object.keys(window._shareSpy||{}).some(function(k){ return (window._shareSpy[k]||[]).length>=2; });
     var fxHas = Object.keys(window._shareFx||{}).some(function(k){ return (window._shareFx[k]||[]).length>=2; });
