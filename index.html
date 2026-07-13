@@ -359,6 +359,17 @@
     var _toTxt = _toL>0 ? (' · omsättn '+kr(_toN)+' / '+kr(_toL)) : '';
     var armSub = (armOn ? ('Armerad · ordrar: '+cnt) : ('Låst · ordrar: '+cnt)) + _toTxt;
     var h = '<div class="sec">Fjärrstyrning</div><div class="tbl" style="padding:4px 12px 12px">';
+    // SYSTEMHÄLSA (read-only): verifiera från mobilen att allt är uppe.
+    var _hh = d.health||{}, _ba = _hh.bridge_age_s, _dl = _hh.discord_lag_s;
+    var _baCol = (_ba==null||_ba>80)?'#e0b341':'#5fe0a0';
+    h += '<div style="font-size:.78rem;padding:2px 0 8px;color:#9aa3b2;line-height:1.6">'
+       + 'Bridge <span style="color:'+_baCol+'">'+(_ba!=null?_ba+'s':'—')+'</span>'
+       + ' · IB <span style="color:'+(d.ib_connected?'#5fe0a0':'#ef4444')+'">'+(d.ib_connected?'på':'FRÅN')+'</span>'
+       + ' · LLM '+(_hh.llm_ready?'varm':'<span style="color:#e0b341">kall</span>')
+       + ' · realtid '+(_hh.md_realtime?'ja':'<span style="color:#e0b341">nej</span>')
+       + ' · kö '+(_hh.queue_depth!=null?_hh.queue_depth:'—')
+       + (_dl!=null?(' · Discord-lag '+_dl+'s'):'')
+       + '</div>';
     var aoSub = aoOn ? 'av = ignorerar signaler från Discord'
                      : (d.auto_orders_resume ? '<span style="color:#5fe0a0;font-weight:600">Automatiskt på kl 15.30</span>'
                                              : '<span style="color:#e0b341;font-weight:600">Manuellt avslagen</span>');
