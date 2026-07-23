@@ -608,6 +608,7 @@
       }).join('') + '</div>';
       _sortHoldings(opts, window._shOptSort).forEach(function(h){
         var r = h.right==='P'?'PUT':(h.right==='C'?'CALL':'');
+        var _cp = h.right==='P'?'<span style="font-weight:800;color:#ff8a87">P</span> ':(h.right==='C'?'<span style="font-weight:800;color:#5fe0a0">C</span> ':'');
         var info1 = [], info2 = [];
         if(h.premium!=null) info1.push('Premie <b>$'+Number(h.premium).toFixed(2)+'</b>');
         if(h.strike!=null) info1.push('STRIKE <b>$'+h.strike+'</b>');
@@ -616,7 +617,7 @@
         if(h.dte!=null) info2.push('<b>'+h.dte+'</b> dagar kvar');
         var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek, _l = 'P/L';
         c += '<div class="ocard">'
-           + '<div class="ohead"><span class="tk">'+esc(h.ticker)+'</span>'+nyTag(h.ticker)+(r?'<span class="ty">'+r+'</span>':'')+'</div>'
+           + '<div class="ohead">'+_cp+'<span class="tk">'+esc(h.ticker)+'</span>'+nyTag(h.ticker)+(r?'<span class="ty">'+r+'</span>':'')+'</div>'
            + '<div class="oinfo">'+info1.join(' · ')+(info2.length?'<br>'+info2.join(' · '):'')+'</div>'
            + '<div class="onums">'
            +   '<span><span class="lbl">Värde</span>'+kr(h.value_sek)+'</span>'
