@@ -580,11 +580,15 @@
         var dt=new Date((t.t||0)*1000), z=function(n){return(n<10?'0':'')+n;};
         var side=t.side==='BUY'?'KÖP':(t.side==='SELL'?'SÄLJ':(t.side||''));
         var sc=t.side==='BUY'?'pos':(t.side==='SELL'?'neg':'');
-        c += '<tr><td>'+z(dt.getHours())+':'+z(dt.getMinutes())+'</td>'
-           + '<td class="'+sc+'">'+side+(t.boost?'<span class="ty">BOOST</span>':'')+'</td>'
+        // EJ FYLLD = INTE en affär. Raden dämpas och märks med statusen i stället för att se
+        // identisk ut med en genomförd order (avvisade/ofyllda visades förr med signalpriset).
+        var _ok = (t.filled === true) || (t.filled == null && t.price != null);
+        var _stx = _ok ? '' : '<span class="ty" style="opacity:.85">'+esc(t.status||'ej fylld')+'</span>';
+        c += '<tr'+(_ok?'':' style="opacity:.55"')+'><td>'+z(dt.getHours())+':'+z(dt.getMinutes())+'</td>'
+           + '<td class="'+(_ok?sc:'')+'">'+side+(t.boost?'<span class="ty">BOOST</span>':'')+_stx+'</td>'
            + '<td><span class="tk">'+esc(t.ticker)+'</span></td>'
            + '<td>'+(t.qty!=null?t.qty:'')+'</td>'
-           + '<td>'+(t.price!=null?('$'+Number(t.price).toFixed(2)):'—')+'</td></tr>';
+           + '<td>'+(_ok && t.price!=null?('$'+Number(t.price).toFixed(2)):'—')+'</td></tr>';
       });
       c += '</tbody></table></div>';
     } else if(d.is_owner){
