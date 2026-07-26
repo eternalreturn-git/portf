@@ -163,8 +163,19 @@
       dot.className='dot'; dot.style.background='#f0a020';
       f.textContent='Fryst data — IB frånkopplad';
     } else if(fbAge < 12){                             // GRÖN: Firebase-strömmen flödar + IB ansluten → live
-      dot.className='dot live'; dot.style.background='';
-      f.textContent='Livestream';
+      // GRAF-ÅLDER SEPARAT. Live-strömmen går via Firebase och förbi GitHub/PAT helt — dog den TUNGA
+      // publiceringen (utgången PAT → 401, ingen retry, en enda loggrad) fortsatte lampan lysa grönt
+      // med korrekta värden medan GRAFEN var FRUSEN i dagar. Nu sägs det rakt ut.
+      var _ct = window._shareChartTs || 0;
+      var _cAge = _ct ? (now - _ct) : 0;
+      if(_ct && _cAge > 3*3600){
+        dot.className='dot'; dot.style.background='#f0a020';
+        f.textContent='Livestream — men grafen uppdaterades senast '
+                    + new Date(_ct*1000).toLocaleString('sv-SE',{dateStyle:'short',timeStyle:'short'});
+      } else {
+        dot.className='dot live'; dot.style.background='';
+        f.textContent='Livestream';
+      }
     } else if(age >= 90){                              // RÖD: ingen färsk data på 90s → localservern är av
       dot.className='dot'; dot.style.background='#ef4444';
       f.textContent='Server offline, senaste ögonblicksbild: '+snap();
@@ -521,7 +532,12 @@
     // Utvecklingsgraf (samma %-serie som GUI:t, utan cirkeldiagram). Tidknapparna
     // byter period lokalt — all data är redan inbäddad i payloaden.
     window._shareChart = d.chart || {};
-    window._shareChartPm = d.chart_pm || {};   // PM-kurva (postmarket) → PM-toggeln växlar till denna
+    // BARA om nyckeln FINNS. Live-strömmen bär ingen graf (den poppas bort), och ett ovillkorligt
+    // `d.chart_pm || {}` nollade därför PM-kurvan ~1 s efter varje publicering → PM-toggeln ritade
+    // RTH-kurvan igen. Samma sak för chart_ts: skrevs den av strömmen var den alltid färsk, så
+    // 3-timmarsvarningen om en FRUSEN graf kunde aldrig fyra — exakt den bugg den infördes för.
+    if(d.chart_pm) window._shareChartPm = d.chart_pm;   // PM-kurva (postmarket) → PM-toggeln växlar till denna
+    if(d.chart_ts) window._shareChartTs = d.chart_ts;   // när grafen senast publicerades (se freshness)
     window._shareMarks = d.marks || [];    // BARA den här partnerns insättnings-/uttagsmarkörer
     window._shareSpy = d.spy || {};        // SPY-överlägg (per period, normaliserad %)
     window._shareFx = d.fx || {};          // USD/SEK-överlägg (per period, normaliserad %) — cyan streckad
