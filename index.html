@@ -134,6 +134,11 @@
   // som fallback. Web-config är publik (säkerheten ligger i RTDB-reglerna + att blobben är krypterad).
   var FB_CONFIG = {"apiKey": "AIzaSyBeRcYKniWFYjRn6tM2O6MoiBSh_kUKwW0", "authDomain": "eternalreturns.firebaseapp.com", "databaseURL": "https://eternalreturns-default-rtdb.europe-west1.firebasedatabase.app", "projectId": "eternalreturns", "storageBucket": "eternalreturns.firebasestorage.app", "messagingSenderId": "861303770274", "appId": "1:861303770274:web:26643afc14a3445123dbfb"};
   var _fbdb = null;
+  // Är Firebase-KOMMANDOkanalen öppen? SKILT från om Firebase alls är initierat: databasreglerna
+  // kan låsa `cmd/*` (rekommenderat — mobilen skriver ändå till GitHub) medan `share/live` är
+  // läsbara. Utan den här skillnaden pollade ack-loopen en NEKAD Firebase-väg i 45 s och föll
+  // aldrig tillbaka på GitHub → kommandot KÖRDES men mobilen sa "ingen bekräftelse".
+  var _fbCmd = null;   // null = okänt, true = öppen, false = nekad/stängd
   try { if(window.firebase && FB_CONFIG && FB_CONFIG.databaseURL){ firebase.initializeApp(FB_CONFIG); _fbdb = firebase.database(); } } catch(e){ _fbdb = null; }
   function msg(t){ var m=document.getElementById('msg'); if(m) m.textContent=t; }
   function b64ToBytes(b64){ var bin=atob(b64); var u=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
@@ -225,7 +230,9 @@
     // FIREBASE realtid: servern PRENUMERERAR på cmd/commands → kör kommandot inom sub-sekund. HMAC-signaturen
     // skyddar mot förfalskning oavsett transport. GitHub nedan = fallback om Firebase saknas/strular.
     var fbOk=false;
-    if(_fbdb){ try{ await _fbdb.ref('cmd/commands').set({cmds:[cmd], ts:cmd.ts}); fbOk=true; }catch(e){} }
+    if(_fbdb){ try{ await _fbdb.ref('cmd/commands').set({cmds:[cmd], ts:cmd.ts}); fbOk=true; _fbCmd=true; }
+               catch(e){ _fbCmd=false; } }   // nekad av reglerna → GitHub-vägen nedan gäller
+    else { _fbCmd=false; }
     var api='https://api.github.com/repos/'+REPO+'/contents/cmd/commands.json';
     // GitHub:s Contents-API kan servera en GAMMAL sha (eventual consistency, trots cache-bust) → PUT ger
     // 409 "is at X but expected Y". Hämta då om sha + försök igen (samma mönster som serversidan,
@@ -253,11 +260,14 @@
   // null om inget kom inom ~42 s. Visar löpande räknare så man ser ATT det jobbar (inte hängt).
   async function ctlWaitAck(id, label){
     // FIREBASE: läs cmd/ack i realtid var 1:e s (servern skriver direkt efter körning). Fallback: GitHub var 3:e s.
-    var n=_fbdb?45:14, step=_fbdb?1000:3000;
+    var _rt=(_fbCmd===true);
+    var n=_rt?45:14, step=_rt?1000:3000;
     for(var i=0;i<n;i++){ await ctlSleep(step);
-      ctlSetMsg('<span style="color:var(--dim)">'+(label||'Kommando')+': väntar på servern… '+Math.round((i+1)*step/1000)+' s'+(_fbdb?' (realtid)':' (pollar repot var 20:e sek)')+'</span>');
-      if(_fbdb){
-        try{ var s=await _fbdb.ref('cmd/ack').once('value'); var v=s.val(); if(v&&v.acks){ var a=v.acks.filter(function(x){return x.id===id;})[0]; if(a) return a; } }catch(e){}
+      _rt=(_fbCmd===true);                       // kan slås av mitt i loopen (se catch nedan)
+      ctlSetMsg('<span style="color:var(--dim)">'+(label||'Kommando')+': väntar på servern… '+Math.round((i+1)*step/1000)+' s'+(_rt?' (realtid)':' (pollar repot var 20:e sek)')+'</span>');
+      if(_rt){
+        try{ var s=await _fbdb.ref('cmd/ack').once('value'); var v=s.val(); if(v&&v.acks){ var a=v.acks.filter(function(x){return x.id===id;})[0]; if(a) return a; } }
+        catch(e){ _fbCmd=false; step=3000; n=Math.max(n, i+14); }   // nekad → byt till GitHub, ge full väntetid
       } else {
         try{ var g=await fetch('https://api.github.com/repos/'+REPO+'/contents/cmd/ack.json?cb='+Date.now(),{headers:ctlHeaders(),cache:'no-store'});
           if(g.status===200){ var j=await g.json(); var dec=JSON.parse(decodeURIComponent(escape(atob((j.content||'').replace(/\n/g,''))))); var a=(dec.acks||[]).filter(function(x){return x.id===id;})[0];
