@@ -626,12 +626,15 @@
 
     var _vt = (window._shareValView==='start');                            // true = "Sen start" (P/L), false = "Idag"
     var _pKey = _vt?'pnl_pct':'chg_pct', _kKey = _vt?'pnl_sek':'chg_sek';
+    // RUBRIKEN FOLJER VAXELN. Den stod "P/L" aven i laget "Idag" — da visades dagens rorelse under
+    // rubriken P/L (GFS +6,4 % pa delningssidan mot -78,3 % P/L i GUI:t), vilket last som ett fel.
+    var _lp = _vt?'P/L %':'Idag %', _lk = _vt?'P/L kr':'Idag kr';
     var _swShown = false;
     if(stocks.length){
       c += '<div class="sec sec-row"><span>Aktier ('+stocks.length+')</span>'+valSwitchHtml()+'</div>'; _swShown=true;
       c += '<div class="tbl"><table><thead><tr>'
          + _shTh('stk','ticker','Aktie') + _shTh('stk','value_sek','Värde') + _shTh('stk','andel','Andel')
-         + _shTh('stk',_pKey,'P/L %') + _shTh('stk',_kKey,'P/L kr')
+         + _shTh('stk',_pKey,_lp) + _shTh('stk',_kKey,_lk)
          + '</tr></thead><tbody>';
       _sortHoldings(stocks, window._shStkSort).forEach(function(h){
         var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek;
@@ -648,7 +651,7 @@
       // under. Separator mellan varje option. Samma IDAG/SEN START-växel styr P/L-paret som hos aktierna.
       c += '<div class="sec sec-row"><span>Optioner ('+opts.length+')</span>'+(_swShown?'':valSwitchHtml())+'</div>';
       var _oFields = [['ticker','Ticker'],['value_sek','Värde'],['andel','Andel'],['strike','Strike'],
-                      ['kurs','Kurs'],['expiry','Slutdatum'],['dte','Dagar'],[_pKey,'P/L %'],[_kKey,'P/L kr']];
+                      ['kurs','Kurs'],['expiry','Slutdatum'],['dte','Dagar'],[_pKey,_lp],[_kKey,_lk]];
       c += '<div class="sortbar"><span class="slbl">Sortera:</span>' + _oFields.map(function(k){
         var on=window._shOptSort.key===k[0];
         return '<button class="schip'+(on?' on':'')+'" onclick="shSort(\'opt\',\''+k[0]+'\')">'+k[1]+(on?(window._shOptSort.dir<0?' ▾':' ▴'):'')+'</button>';
@@ -662,7 +665,7 @@
         if(h.kurs!=null) info1.push('kurs <b>$'+Number(h.kurs).toFixed(2)+'</b>');
         if(h.expiry) info2.push('Slutdatum <b>'+fmtDate(h.expiry)+'</b>');
         if(h.dte!=null) info2.push('<b>'+h.dte+'</b> dagar kvar');
-        var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek, _l = 'P/L';
+        var _p = _vt?h.pnl_pct:h.chg_pct, _k = _vt?h.pnl_sek:h.chg_sek, _l = _vt?'P/L':'Idag';
         c += '<div class="ocard">'
            + '<div class="ohead">'+_cp+'<span class="tk">'+esc(h.ticker)+'</span>'+nyTag(h.ticker)+(r?'<span class="ty">'+r+'</span>':'')+'</div>'
            + '<div class="oinfo">'+info1.join(' · ')+(info2.length?'<br>'+info2.join(' · '):'')+'</div>'
