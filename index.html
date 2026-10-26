@@ -586,9 +586,11 @@
          + '<div id="chLo" class="chx"></div>';
     }
 
-    // Andel = innehavets värde / (alla innehav + saldo). Summan av alla andelar
-    // (aktier + optioner + saldo) blir därför 100 %.
-    var cash = d.cash_sek || 0;
+    // Andel = innehavets värde / EGET KAPITAL. Saldot är EGEN kassa = saldo minus belåning, samma
+    // definition som GUI:ts ring (användarens beslut 2026-10-27: "cash % ska vara andel av VÅRA pengar
+    // som ligger utanför"). Förr räknades den lånade kassan in och delades med bruttot → 54,9 % här mot
+    // 47,3 % i GUI:t för samma portfölj. Innehav + eget saldo summerar fortfarande till 100 %.
+    var cash = (d.cash_sek || 0) - (d.belaning_sek || 0);
     var base = (d.gross_sek||0) + cash;
     function apTxt(v){ if(!base) return '—'; var a=v/base*100; return (a>0&&a<0.1 ? a.toFixed(2) : a.toFixed(1))+'%'; }
 
@@ -675,7 +677,7 @@
     // Saldo (kontanter) som egen sektion → summan av alla andelar = 100 %.
     c += '<div class="sec">Saldo</div>';
     c += '<div class="tbl"><table><thead><tr><th>Kontanter</th><th>Värde</th><th>Andel</th></tr></thead><tbody>'
-       + '<tr><td>Saldo</td><td>'+kr(cash)+'</td><td>'+apTxt(cash)+'</td></tr>'
+       + '<tr><td>Saldo (eget, efter lån)</td><td>'+kr(cash)+'</td><td>'+apTxt(cash)+'</td></tr>'
        + '</tbody></table></div>';
     // SYSTEMLOGG-SPEGEL (bara ägaren) — samma färgkoder som GUI:t. NYASTE NEDERST (som riktiga
     // systemloggen). Auto-scrollar till botten vid omritning OM du redan var längst ned (annars
