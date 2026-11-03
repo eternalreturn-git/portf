@@ -244,10 +244,8 @@
     cmd.sig=await ctlHmac([cmd.id, cmd.action, (cmd.conId!=null?cmd.conId:''), (cmd.key!=null?cmd.key:''), cmd.ts].join('|'));
     // FIREBASE realtid: servern PRENUMERERAR på cmd/commands → kör kommandot inom sub-sekund. HMAC-signaturen
     // skyddar mot förfalskning oavsett transport. GitHub nedan = fallback om Firebase saknas/strular.
-    var fbOk=false;
-    if(_fbdb){ try{ await _fbdb.ref('cmd/commands').set({cmds:[cmd], ts:cmd.ts}); fbOk=true; _fbCmd=true; }
-               catch(e){ _fbCmd=false; } }   // nekad av reglerna → GitHub-vägen nedan gäller
-    else { _fbCmd=false; }
+    // Servern lyssnar INTE langre pa Firebase (borttaget 2026-11-03): kommandon gar bara via GitHub.
+    var fbOk=false; _fbCmd=false;
     var api='https://api.github.com/repos/'+REPO+'/contents/cmd/commands.json';
     // GitHub:s Contents-API kan servera en GAMMAL sha (eventual consistency, trots cache-bust) → PUT ger
     // 409 "is at X but expected Y". Hämta då om sha + försök igen (samma mönster som serversidan,
